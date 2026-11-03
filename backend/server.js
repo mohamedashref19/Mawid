@@ -32,8 +32,8 @@ mongoose
 const port = process.env.PORT || 5000;
 const host = process.env.HOST || "127.0.0.1";
 
-server.listen(port, "0.0.0.0", host, () => {
-  console.log(`Mawid App running on http://${host}:${port}... `);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Mawid App running on port ${port}...`);
 });
 
 // ---------- معالجة الأخطاء على مستوى العملية ----------
