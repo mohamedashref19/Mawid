@@ -1,14 +1,32 @@
 const multer = require("multer");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const AppError = require("../utils/appError");
 
-const multerStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
+// إعدادات Cloudinary (تأكد من إضافة هذه المتغيرات في ملف .env)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// إعداد التخزين لصور الفعاليات
+const eventStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "events", // اسم المجلد الذي سيتم إنشاؤه في Cloudinary
+    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+    public_id: (req, file) => `event-${Date.now()}`,
   },
-  filename: (req, file, cb) => {
-    // اسم الصورة هيكون: booking-رقم_المستخدم-التاريخ.المتداد
-    const ext = file.mimetype.split("/")[1];
-    cb(null, `booking-${req.user.id}-${Date.now()}.${ext}`);
+});
+
+// إعداد التخزين لإيصالات الدفع
+const receiptStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "receipts",
+    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+    public_id: (req, file) => `booking-${req.user.id}-${Date.now()}`,
   },
 });
 
@@ -20,30 +38,19 @@ const multerFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({
-  storage: multerStorage,
+// رفع إيصالات الدفع
+const uploadReceipt = multer({
+  storage: receiptStorage,
   fileFilter: multerFilter,
   limits: { fileSize: 5 * 1024 * 1024 }, // الحد الأقصى 5 ميجا
 });
 
-exports.uploadPaymentReceipt = upload.single("paymentReceipt");
-// إعدادات تخزين خاصة بصور الايفنتات
-const eventStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    // اسم الصورة هيكون: event-التاريخ.الامتداد
-    const ext = file.mimetype.split("/")[1];
-    cb(null, `event-${Date.now()}.${ext}`);
-  },
-});
-
+// رفع صور الفعاليات
 const uploadEvent = multer({
   storage: eventStorage,
-  fileFilter: multerFilter, // هنستخدم نفس الفلتر اللي بيسمح بالصور بس
+  fileFilter: multerFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-// تصدير الميدل وير الجديد (اسم الحقل في الفرونت إند هيكون image)
+exports.uploadPaymentReceipt = uploadReceipt.single("paymentReceipt");
 exports.uploadEventImage = uploadEvent.single("image");
