@@ -12,6 +12,7 @@ dotenv.config({ path: "./.env" });
 const mongoose = require("mongoose");
 const http = require("http");
 const app = require("./app");
+const startKeepAliveJob = require("./utils/keepAliveService");
 
 const server = http.createServer(app);
 
@@ -35,6 +36,7 @@ const host = process.env.HOST || "127.0.0.1";
 app.listen(port, "0.0.0.0", () => {
   console.log(`Mawid App running on port ${port}...`);
 });
+startKeepAliveJob();
 
 // ---------- معالجة الأخطاء على مستوى العملية ----------
 process.on("unhandledRejection", (reason) => {
