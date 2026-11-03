@@ -32,7 +32,7 @@ mongoose
 const port = process.env.PORT || 5000;
 const host = process.env.HOST || "127.0.0.1";
 
-server.listen(port, host, () => {
+server.listen(port, "0.0.0.0", host, () => {
   console.log(`Mawid App running on http://${host}:${port}... `);
 });
 

@@ -1,8 +1,8 @@
 import axios from "axios";
 
 // رابط الباك إند الأساسي (تقدر تغيره من ملف .env في الفرونت إند)
-// export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
-export const BACKEND_URL = "http://127.0.0.1:5000";
+//export const BACKEND_URL = "http://127.0.0.1:5000";
+export const BACKEND_URL = import.meta.env["VITE_BACKEND_URL"] || "http://127.0.0.1:5000";
 // رابط الـ API
 const baseURL = `${BACKEND_URL}/api/v1`;
 
