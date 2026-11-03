@@ -37,11 +37,10 @@ exports.getEvent = catchAsync(async (req, res, next) => {
 });
 
 // 3. إضافة ايفنت جديد (خاص بالأدمن)
-// 3. إضافة ايفنت جديد (خاص بالأدمن)
 exports.createEvent = catchAsync(async (req, res, next) => {
   // لو تم رفع صورة، ضيف اسمها للبيانات اللي هتتحفظ
   if (req.file) {
-    req.body.image = req.file.filename;
+    req.body.image = req.file.path;
   }
 
   const newEvent = await Event.create(req.body);
@@ -58,7 +57,7 @@ exports.createEvent = catchAsync(async (req, res, next) => {
 exports.updateEvent = catchAsync(async (req, res, next) => {
   // لو تم رفع صورة جديدة أثناء التعديل، حدث اسمها
   if (req.file) {
-    req.body.image = req.file.filename;
+    req.body.image = req.file.path;
   }
 
   const event = await Event.findByIdAndUpdate(req.params.id, req.body, {

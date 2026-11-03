@@ -28,7 +28,7 @@ exports.createBooking = catchAsync(async (req, res, next) => {
     event: eventId,
     quantity,
     amount: event.price * quantity,
-    paymentReceipt: req.file.filename,
+    paymentReceipt: req.file.path,
   });
 
   await newBooking.populate([
