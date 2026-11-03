@@ -33,6 +33,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   "http://localhost:5173", // پورت الفرونت إند بتاع Lovable (Vite)
   "http://localhost:8081",
+  "https://cts-alex.vercel.app",
 ].filter(Boolean);
 app.set("allowedOrigins", allowedOrigins);
 
@@ -85,7 +86,6 @@ app.get("/", (req, res) => {
   res.status(200).send("Mawid API is running successfully! 🚀");
 });
 
-// TODO: تفعيل الـ Routes بمجرد إنشائها
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/events", eventRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
