@@ -18,9 +18,9 @@ import { TYPE_LABEL, formatLongDate, formatNumber, formatPrice, formatTime } fro
 export const Route = createFileRoute("/details/$id")({
   head: () => ({
     meta: [
-      { title: "تفاصيل الحجز | موعد" },
+      { title: "تفاصيل الحجز | CTS " },
       { name: "description", content: "كل تفاصيل الفعاليه أو الكورس قبل الحجز." },
-      { property: "og:title", content: "تفاصيل الحجز | موعد" },
+      { property: "og:title", content: "تفاصيل الحجز | CTS " },
       { property: "og:description", content: "كل تفاصيل الفعالية أو الكورس قبل الحجز." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

@@ -25,9 +25,9 @@ import type { Role } from "@/lib/api";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "تسجيل الدخول | موعد" },
+      { title: "تسجيل الدخول | CTS " },
       { name: "description", content: "سجل الدخول أو أنشئ حساباً جديداً لحجز تذاكرك." },
-      { property: "og:title", content: "تسجيل الدخول | موعد" },
+      { property: "og:title", content: "تسجيل الدخول | CTS " },
       { property: "og:description", content: "سجل الدخول أو أنشئ حساباً جديداً لحجز تذاكرك." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

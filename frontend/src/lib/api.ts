@@ -31,6 +31,7 @@ apiClient.interceptors.request.use((config) => {
 
 export type Role = "user" | "employee" | "admin";
 export type ItemType = "event" | "course";
+export type AttendanceMode = "online" | "offline";
 export type BookingStatus = "pending" | "confirmed" | "rejected" | "attended";
 export type PaymentMethod = "wallet" | "instapay" | "link";
 
@@ -49,6 +50,7 @@ export interface StaffAccount extends User {
 export interface Item {
   id: string;
   type: ItemType;
+  attendanceMode: AttendanceMode;
   title: string;
   description: string;
   image: string;
@@ -93,6 +95,7 @@ export interface Stats {
 
 export interface NewItemInput {
   type: ItemType;
+  attendanceMode: AttendanceMode;
   title: string;
   description: string;
   image: string;
@@ -129,6 +132,7 @@ interface BackendEventRaw {
   _id?: string;
   id?: string;
   type: ItemType;
+  attendanceMode?: AttendanceMode;
   title: string;
   description: string;
   image?: string;
@@ -217,6 +221,7 @@ function mapBackendEvent(e: BackendEventRaw): Item {
   return {
     id,
     type: e.type,
+    attendanceMode: e.type === "event" ? "offline" : e.attendanceMode || "offline",
     title: e.title,
     description: e.description,
     image,
@@ -392,11 +397,6 @@ export function logout(): void {
 
 // ------------------------------- Items -------------------------------
 
-/**
- * جلب الفعاليات والكورسات.
- * افتراضياً (upcomingOnly = true) يقوم بإخفاء أي إيفنت أو كورس انتهى تاريخه من الصفحة الرئيسية.
- * في لوحة تحكم الأدمن وصفحة "حجوزاتي" نمرر false لعرض كل العناصر بما فيها السابقة.
- */
 export async function listItems(
   type: "all" | ItemType = "all",
   search = "",
@@ -433,7 +433,6 @@ export async function listItems(
         dt[part.type] = part.value;
       });
 
-      // إصلاح الخطأ: استخدام الأقواس المربعة للوصول للخصائص
       const currentCairoTimeStr = `${dt["year"]}-${dt["month"]}-${dt["day"]}T${dt["hour"]}:${dt["minute"]}:00`;
 
       mapped = mapped.filter((item) => {
@@ -523,6 +522,7 @@ export async function adminCreateItem(input: NewItemInput): Promise<Item> {
     const formData = new FormData();
     formData.append("title", input.title);
     formData.append("type", input.type);
+    formData.append("attendanceMode", input.type === "event" ? "offline" : input.attendanceMode);
     formData.append("description", input.description);
     formData.append("date", input.date);
     formData.append("time", input.time);
@@ -555,6 +555,9 @@ export async function adminUpdateItem(id: string, patch: Partial<NewItemInput>):
     const formData = new FormData();
     if (patch.title !== undefined) formData.append("title", patch.title);
     if (patch.type !== undefined) formData.append("type", patch.type);
+    if (patch.attendanceMode !== undefined) {
+      formData.append("attendanceMode", patch.type === "event" ? "offline" : patch.attendanceMode);
+    }
     if (patch.description !== undefined) formData.append("description", patch.description);
     if (patch.date !== undefined) formData.append("date", patch.date);
     if (patch.time !== undefined) formData.append("time", patch.time);

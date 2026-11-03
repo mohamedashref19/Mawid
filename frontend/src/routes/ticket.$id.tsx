@@ -22,7 +22,7 @@ import { formatLongDate, formatNumber, formatPrice, formatTime } from "@/lib/for
 
 export const Route = createFileRoute("/ticket/$id")({
   head: () => ({
-    meta: [{ title: "التذكرة | موعد" }],
+    meta: [{ title: "التذكرة | CTS " }],
   }),
   component: TicketPage,
 });
@@ -52,7 +52,6 @@ function TicketPage() {
     );
   }
 
-  // إذا كان الحجز لسه قيد المراجعة أو مرفوض
   if (booking.status !== "confirmed" && booking.status !== "attended") {
     return (
       <div className="mx-auto max-w-md px-4 pt-10 text-center">
@@ -75,7 +74,9 @@ function TicketPage() {
     );
   }
 
-  const isCourse = item.type === "course";
+  const isOnlineCourse = item.type === "course" && item.attendanceMode === "online";
+  const rawAccess = (item.accessLink ?? "").trim();
+  const isUrl = /^https?:\/\//i.test(rawAccess);
 
   async function downloadTicket() {
     const el = document.getElementById("ticket-card");
@@ -85,9 +86,9 @@ function TicketPage() {
       const dataUrl = await toPng(el, { pixelRatio: 2 });
       const a = document.createElement("a");
       a.href = dataUrl;
-      a.download = `mawid-${isCourse ? "course" : "ticket"}-${booking!.code}.png`;
+      a.download = `CTS-ticket-${booking!.code}.png`;
       a.click();
-      toast.success(isCourse ? "تم تنزيل إيصال الكورس" : "تم تنزيل التذكرة");
+      toast.success("تم تنزيل التذكرة");
     } catch {
       toast.error("تعذر التنزيل");
     }
@@ -97,10 +98,12 @@ function TicketPage() {
     <div className="mx-auto max-w-md px-4">
       <header className="pt-6 text-center">
         <h1 className="text-xl font-extrabold text-foreground">
-          {isCourse ? "اكتمل حجز الكورس 🎉" : "تذكرتك جاهزة 🎉"}
+          {isOnlineCourse ? "اكتمل حجز الكورس 🎉" : "تذكرتك جاهزة 🎉"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {isCourse ? "يمكنك الآن الانضمام للكورس عبر الرابط" : "اعرض هذا الرمز عند البوابة للدخول"}
+          {isOnlineCourse
+            ? "يمكنك الآن الانضمام للكورس عبر التفاصيل بالأسفل"
+            : "اعرض رمز الـ QR عند البوابة للدخول"}
         </p>
       </header>
 
@@ -149,22 +152,27 @@ function TicketPage() {
           </div>
 
           <div className="flex flex-col items-center gap-3 border-t border-dashed border-border pt-4">
-            {isCourse ? (
-              // تصميم الكورس: إظهار الرابط وإخفاء الـ QR
+            {isOnlineCourse ? (
               <div className="w-full text-center">
-                <p className="text-sm font-bold text-foreground mb-3">رابط الانضمام متاح الآن</p>
-                {item.accessLink ? (
-                  <a
-                    href={item.accessLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground p-4 font-bold transition-colors hover:bg-primary/90"
-                  >
-                    الانتقال للكورس / الجروب <ExternalLink className="size-5" />
-                  </a>
+                <p className="text-sm font-bold text-foreground mb-3">تفاصيل الانضمام للكورس</p>
+                {rawAccess ? (
+                  isUrl ? (
+                    <a
+                      href={rawAccess}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground p-4 font-bold transition-colors hover:bg-primary/90"
+                    >
+                      الانتقال للكورس / الجروب <ExternalLink className="size-5" />
+                    </a>
+                  ) : (
+                    <div className="rounded-xl bg-primary/10 border border-primary/30 p-4 text-sm font-bold text-foreground whitespace-pre-wrap">
+                      {rawAccess}
+                    </div>
+                  )
                 ) : (
                   <p className="text-xs text-muted-foreground bg-muted p-4 rounded-xl">
-                    سيتم إرسال رابط الدخول قريباً.
+                    سيتم إرسال تفاصيل الدخول قريباً.
                   </p>
                 )}
                 <div className="mt-4">
@@ -175,13 +183,12 @@ function TicketPage() {
                 </div>
               </div>
             ) : (
-              // تصميم الإيفنت: إظهار الـ QR Code
               <>
                 <div className="rounded-2xl bg-white p-3">
                   <QRCodeSVG value={`${booking.qrToken}|${booking.code}`} size={168} level="M" />
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] text-muted-foreground">رقم الحجز</p>
+                  <p className="text-[11px] text-muted-foreground">رقم التذكرة</p>
                   <p dir="ltr" className="text-2xl font-extrabold tracking-[0.2em] text-primary">
                     {booking.code}
                   </p>
@@ -192,7 +199,7 @@ function TicketPage() {
         </div>
       </div>
 
-      {!isCourse && (
+      {!isOnlineCourse && (
         <Button
           onClick={downloadTicket}
           variant="secondary"

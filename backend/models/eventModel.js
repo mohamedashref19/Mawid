@@ -12,8 +12,17 @@ const eventSchema = new mongoose.Schema(
       enum: ["event", "course"],
       required: [true, "يرجى تحديد النوع (حدث أو كورس)"],
     },
+    attendanceMode: {
+      type: String,
+      enum: {
+        values: ["online", "offline"],
+        message: "نظام الحضور يجب أن يكون online أو offline",
+      },
+      default: "offline", // الافتراضي خليناه أوفلاين عشان الإيفنتات والكورسات العادية
+    },
     accessLink: {
       type: String,
+      default: "",
     },
     description: {
       type: String,

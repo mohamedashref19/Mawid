@@ -11,9 +11,9 @@ import { formatDateTime, formatNumber, formatPrice } from "@/lib/format";
 export const Route = createFileRoute("/bookings")({
   head: () => ({
     meta: [
-      { title: "حجوزاتي | موعد" },
+      { title: "حجوزاتي | CTS " },
       { name: "description", content: "تابع حالة حجوزاتك وقم بتحميل تذاكرك." },
-      { property: "og:title", content: "حجوزاتي | موعد" },
+      { property: "og:title", content: "حجوزاتي | CTS " },
       { property: "og:description", content: "تابع حالة حجوزاتك وقم بتحميل تذاكرك." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -31,7 +31,6 @@ function MyBookings() {
   });
   const { data: items } = useQuery({
     queryKey: ["items", "all", "includePast"],
-    // نمرر false حتى تظل بيانات الفعاليات السابقة ظاهرة في سجل حجوزات العميل
     queryFn: () => api.listItems("all", "", false),
     enabled: ready,
   });
@@ -62,7 +61,7 @@ function MyBookings() {
             <ReceiptText className="size-10 text-muted-foreground" />
             <p className="font-bold text-foreground">لا توجد حجوزات بعد</p>
             <p className="text-sm text-muted-foreground">
-              ابدأ بتصفح الفعالياتوالكورسات واحجز مقعدك
+              ابدأ بتصفح الفعاليات والكورسات واحجز مقعدك
             </p>
             <Button asChild className="mt-2 rounded-2xl font-bold shadow-glow">
               <Link to="/">تصفح الآن</Link>
@@ -82,6 +81,7 @@ function MyBookings() {
 function BookingRow({ booking, item }: { booking: api.Booking; item: api.Item | undefined }) {
   const navigate = useNavigate();
   const isCourse = item?.type === "course";
+  const isOnlineCourse = isCourse && item?.attendanceMode === "online";
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
@@ -128,7 +128,7 @@ function BookingRow({ booking, item }: { booking: api.Booking; item: api.Item | 
             onClick={() => navigate({ to: "/ticket/$id", params: { id: booking.id } })}
             className="h-11 w-full gap-2 rounded-xl font-bold shadow-glow"
           >
-            {isCourse ? (
+            {isOnlineCourse ? (
               <>
                 <ExternalLink className="size-5" /> عرض رابط وتفاصيل الكورس
               </>

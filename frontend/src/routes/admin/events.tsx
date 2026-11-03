@@ -11,6 +11,7 @@ export const Route = createFileRoute("/admin/events")({
 const INITIAL_FORM: api.NewItemInput = {
   title: "",
   type: "course",
+  attendanceMode: "online",
   description: "",
   date: "",
   time: "18:00",
@@ -37,7 +38,6 @@ function AdminEvents() {
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      // نمرر false في المعامل الثالث حتى يرى الأدمن جميع الفعاليات (الحالية والمنتهية)
       setEvents(await api.listItems("all", "", false));
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "فشل جلب الفعاليات");
@@ -61,6 +61,7 @@ function AdminEvents() {
     setForm({
       title: item.title,
       type: item.type,
+      attendanceMode: item.attendanceMode || (item.type === "course" ? "online" : "offline"),
       description: item.description,
       date: item.date,
       time: item.time,
@@ -116,9 +117,14 @@ function AdminEvents() {
       return;
     }
 
+    const effectiveMode: api.AttendanceMode =
+      form.type === "event" ? "offline" : form.attendanceMode;
+
     const submitData: api.NewItemInput = {
       ...form,
-      accessLink: form.type === "course" ? (form.accessLink ?? "") : "",
+      attendanceMode: effectiveMode,
+      accessLink:
+        form.type === "course" && effectiveMode === "online" ? (form.accessLink ?? "").trim() : "",
     };
 
     setBusy(true);
@@ -156,7 +162,7 @@ function AdminEvents() {
         <button
           type="button"
           onClick={closeForm}
-          className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 mb-6 bg-[#0c2221] px-4 py-2 rounded-xl border border-teal-900/50 transition-colors"
+          className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors"
         >
           <ArrowRight size={20} />
           <span>رجوع لقائمة الفعاليات</span>
@@ -177,14 +183,14 @@ function AdminEvents() {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-[#0c2221] rounded-3xl p-6 border border-teal-900/50 space-y-6"
+          className="bg-card rounded-3xl p-6 border border-border space-y-6"
         >
           {/* رفع الصورة */}
           <div className="space-y-2">
-            <label className="text-teal-400 block font-bold">صورة الغلاف</label>
+            <label className="text-primary block font-bold">صورة الغلاف</label>
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="w-full h-48 border-2 border-dashed border-teal-500/50 rounded-2xl flex flex-col items-center justify-center cursor-pointer overflow-hidden hover:bg-teal-900/20 transition-colors relative group"
+              className="w-full h-48 border-2 border-dashed border-primary/50 rounded-2xl flex flex-col items-center justify-center cursor-pointer overflow-hidden hover:bg-muted transition-colors relative group"
             >
               {form.image ? (
                 <>
@@ -196,7 +202,7 @@ function AdminEvents() {
               ) : (
                 <>
                   <ImagePlus size={40} className="text-teal-500/50 mb-2" />
-                  <p className="text-teal-400/50 text-sm">اضغط لاختيار صورة (JPG, PNG)</p>
+                  <p className="text-primary/50 text-sm">اضغط لاختيار صورة (JPG, PNG)</p>
                 </>
               )}
               <input
@@ -212,69 +218,99 @@ function AdminEvents() {
           {/* العنوان والنوع */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">العنوان</label>
+              <label className="text-primary block font-bold">العنوان</label>
               <input
                 type="text"
                 required
                 placeholder="مثال: كورس برمجة متقدم"
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">النوع</label>
+              <label className="text-primary block font-bold">النوع</label>
               <select
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
                 value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value as api.ItemType })}
+                onChange={(e) => {
+                  const newType = e.target.value as api.ItemType;
+                  setForm({
+                    ...form,
+                    type: newType,
+                    attendanceMode: newType === "event" ? "offline" : form.attendanceMode,
+                  });
+                }}
               >
-                <option value="course" className="bg-[#0c2221]">
+                <option value="course" className="bg-card">
                   كورس
                 </option>
-                <option value="event" className="bg-[#0c2221]">
+                <option value="event" className="bg-card">
                   ايفنت
                 </option>
               </select>
             </div>
           </div>
 
-          {/* الرابط يظهر فقط للكورسات */}
+          {/* خيارات الكورس: أونلاين أم أوفلاين */}
           {form.type === "course" && (
-            <div className="space-y-2 animate-in fade-in slide-in-from-top-4">
-              <label className="text-teal-400 block font-bold">
-                رابط الانضمام (جروب واتساب / المنصة)
-              </label>
-              <input
-                type="url"
-                dir="ltr"
-                placeholder="https://chat.whatsapp.com/..."
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none text-right"
-                value={form.accessLink ?? ""}
-                onChange={(e) => setForm({ ...form, accessLink: e.target.value })}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4">
+              <div className="space-y-2">
+                <label className="text-primary block font-bold">نظام حضور الكورس</label>
+                <select
+                  className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                  value={form.attendanceMode}
+                  onChange={(e) =>
+                    setForm({ ...form, attendanceMode: e.target.value as api.AttendanceMode })
+                  }
+                >
+                  <option value="online" className="bg-card">
+                    أونلاين (رابط انضمام / رسالة)
+                  </option>
+                  <option value="offline" className="bg-card">
+                    أوفلاين في المقر (تذكرة QR Code)
+                  </option>
+                </select>
+              </div>
+
+              {form.attendanceMode === "online" && (
+                <div className="space-y-2">
+                  <label className="text-primary block font-bold">
+                    رابط الانضمام (واتساب / زوم) أو رسالة التوجيه
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    dir="auto"
+                    placeholder="https://chat.whatsapp.com/... أو تواصل معنا على رقم..."
+                    className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                    value={form.accessLink ?? ""}
+                    onChange={(e) => setForm({ ...form, accessLink: e.target.value })}
+                  />
+                </div>
+              )}
             </div>
           )}
 
           {/* التاريخ والوقت */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">التاريخ</label>
+              <label className="text-primary block font-bold">التاريخ</label>
               <input
                 type="date"
                 required
                 min={todayDate}
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">الوقت</label>
+              <label className="text-primary block font-bold">الوقت</label>
               <input
                 type="time"
                 required
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
                 value={form.time}
                 onChange={(e) => setForm({ ...form, time: e.target.value })}
               />
@@ -284,13 +320,13 @@ function AdminEvents() {
           {/* السعر والسعة والمكان */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">السعر (ج.م)</label>
+              <label className="text-primary block font-bold">السعر (ج.م)</label>
               <input
                 type="number"
                 required
                 min="0"
                 placeholder="0"
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
                 value={form.price === 0 ? "" : form.price}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -306,13 +342,13 @@ function AdminEvents() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">السعة (عدد الأشخاص)</label>
+              <label className="text-primary block font-bold">السعة (عدد الأشخاص)</label>
               <input
                 type="number"
                 required
                 min="1"
                 placeholder="50"
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
                 value={form.capacity === 0 ? "" : form.capacity}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -328,12 +364,16 @@ function AdminEvents() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">المكان / المنصة</label>
+              <label className="text-primary block font-bold">المكان / المنصة</label>
               <input
                 type="text"
                 required
-                placeholder="مثال: أونلاين أو قاعة سموحة"
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+                placeholder={
+                  form.type === "course" && form.attendanceMode === "online"
+                    ? "مثال: أونلاين (Zoom / جروب واتساب)"
+                    : "مثال: قاعة سموحة - الإسكندرية"
+                }
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
@@ -341,27 +381,27 @@ function AdminEvents() {
           </div>
 
           {/* إعدادات الدفع */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-teal-900/40 pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-6">
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">طريقة الدفع المطلوبة</label>
+              <label className="text-primary block font-bold">طريقة الدفع المطلوبة</label>
               <select
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
                 value={form.paymentMethod}
                 onChange={(e) =>
                   setForm({ ...form, paymentMethod: e.target.value as api.PaymentMethod })
                 }
               >
-                <option value="wallet" className="bg-[#0c2221]">
+                <option value="wallet" className="bg-card">
                   محفظة إلكترونية
                 </option>
-                <option value="instapay" className="bg-[#0c2221]">
+                <option value="instapay" className="bg-card">
                   انستا باي (InstaPay)
                 </option>
               </select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-teal-400 block font-bold">
+              <label className="text-primary block font-bold">
                 {form.paymentMethod === "wallet"
                   ? "رقم المحفظة (مثل 010...)"
                   : "رقم أو عنوان InstaPay"}
@@ -371,7 +411,7 @@ function AdminEvents() {
                 required
                 dir="ltr"
                 placeholder={form.paymentMethod === "wallet" ? "010xxxxxxxx" : "name@instapay"}
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none text-right"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none text-right"
                 value={form.paymentTarget}
                 onChange={(e) => setForm({ ...form, paymentTarget: e.target.value })}
               />
@@ -380,12 +420,12 @@ function AdminEvents() {
 
           {/* الوصف */}
           <div className="space-y-2">
-            <label className="text-teal-400 block font-bold">التفاصيل والوصف</label>
+            <label className="text-primary block font-bold">التفاصيل والوصف</label>
             <textarea
               required
               rows={4}
               placeholder="اكتب وصفاً جذاباً للفعالية وما سيتعلمه الحضور..."
-              className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none resize-none"
+              className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none resize-none"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
@@ -395,7 +435,7 @@ function AdminEvents() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
           >
             {busy ? (
               "جاري الحفظ..."
@@ -415,7 +455,7 @@ function AdminEvents() {
     <div className="p-8 text-right pb-24" dir="rtl">
       <Link
         to="/admin"
-        className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 mb-6 bg-[#0c2221] px-4 py-2 rounded-xl border border-teal-900/50 transition-colors"
+        className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors"
       >
         <ArrowRight size={20} />
         <span>رجوع للوحة التحكم</span>
@@ -426,17 +466,17 @@ function AdminEvents() {
         <button
           type="button"
           onClick={openCreateForm}
-          className="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
         >
           <Plus size={20} />
           <span>إضافة جديد</span>
         </button>
       </div>
 
-      <div className="bg-[#0c2221] rounded-2xl p-4 border border-teal-900/30 overflow-x-auto">
+      <div className="bg-card rounded-2xl p-4 border border-border overflow-x-auto">
         <table className="w-full text-white min-w-[800px]">
           <thead>
-            <tr className="border-b border-teal-900/50 text-teal-400">
+            <tr className="border-b border-border text-primary">
               <th className="p-3 text-right">العنوان</th>
               <th className="p-3 text-right">النوع</th>
               <th className="p-3 text-right">التاريخ</th>
@@ -460,13 +500,13 @@ function AdminEvents() {
               </tr>
             ) : (
               events.map((item) => (
-                <tr key={item.id} className="border-b border-teal-900/20 hover:bg-teal-900/10">
+                <tr key={item.id} className="border-b border-border hover:bg-muted/50">
                   <td className="p-3 flex items-center gap-3">
                     {item.image && (
                       <img
                         src={item.image}
                         alt={item.title}
-                        className="w-10 h-10 rounded object-cover border border-teal-900/50"
+                        className="w-10 h-10 rounded object-cover border border-border"
                       />
                     )}
                     <span>{item.title}</span>
@@ -479,7 +519,9 @@ function AdminEvents() {
                           : "bg-blue-500/20 text-blue-300"
                       }`}
                     >
-                      {item.type === "course" ? "كورس" : "ايفنت"}
+                      {item.type === "course"
+                        ? `كورس (${item.attendanceMode === "online" ? "أونلاين" : "أوفلاين"})`
+                        : "ايفنت"}
                     </span>
                   </td>
                   <td className="p-3" dir="ltr">
@@ -491,7 +533,7 @@ function AdminEvents() {
                     <button
                       type="button"
                       onClick={() => openEditForm(item)}
-                      className="text-teal-400 hover:text-teal-300 transition-colors mt-2"
+                      className="text-primary hover:text-primary/80 transition-colors mt-2"
                     >
                       <Edit size={18} />
                     </button>

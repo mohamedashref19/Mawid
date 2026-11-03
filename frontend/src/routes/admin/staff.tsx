@@ -97,7 +97,7 @@ function AdminStaffs() {
     <div className="p-8 text-right pb-24 relative" dir="rtl">
       <Link
         to="/admin"
-        className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 mb-6 bg-[#0c2221] px-4 py-2 rounded-xl border border-teal-900/50 transition-colors"
+        className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors"
       >
         <ArrowRight size={20} />
         <span>رجوع للوحة التحكم</span>
@@ -107,17 +107,17 @@ function AdminStaffs() {
         <h1 className="text-3xl font-bold text-white">إدارة الموظفين</h1>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
         >
           <UserPlus size={20} />
           <span>إضافة موظف</span>
         </button>
       </div>
 
-      <div className="bg-[#0c2221] rounded-2xl p-4 border border-teal-900/30 overflow-x-auto">
+      <div className="bg-card rounded-2xl p-4 border border-border overflow-x-auto">
         <table className="w-full text-white min-w-[700px]">
           <thead>
-            <tr className="border-b border-teal-900/50 text-teal-400">
+            <tr className="border-b border-border text-primary">
               <th className="p-3 text-right">الاسم</th>
               <th className="p-3 text-right">البريد الإلكتروني</th>
               <th className="p-3 text-right">رقم الموبايل</th>
@@ -140,7 +140,7 @@ function AdminStaffs() {
               </tr>
             ) : (
               staff.map((member) => (
-                <tr key={member.id} className="border-b border-teal-900/20 hover:bg-teal-900/10">
+                <tr key={member.id} className="border-b border-border hover:bg-muted/50">
                   <td className="p-3">{member.name}</td>
                   <td className="p-3 text-gray-300" dir="ltr">
                     {member.email || "-"}
@@ -179,14 +179,14 @@ function AdminStaffs() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <form
             onSubmit={handleAddStaff}
-            className="bg-[#0c2221] p-6 rounded-2xl border border-teal-900/50 w-[90%] max-w-md"
+            className="bg-card p-6 rounded-2xl border border-border w-[90%] max-w-md"
           >
             <h2 className="text-2xl font-bold text-white mb-4">إضافة موظف جديد</h2>
 
             <input
               required
               placeholder="الاسم"
-              className="w-full mb-3 p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+              className="w-full mb-3 p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
@@ -196,7 +196,7 @@ function AdminStaffs() {
               type="email"
               placeholder="البريد الإلكتروني "
               dir="ltr"
-              className="w-full mb-3 p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 text-right focus:border-teal-500 outline-none"
+              className="w-full mb-3 p-3 rounded-xl bg-muted text-white border border-border text-right focus:border-primary outline-none"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
@@ -208,7 +208,7 @@ function AdminStaffs() {
               maxLength={11}
               placeholder="رقم الموبايل "
               dir="ltr"
-              className="w-full mb-3 p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 text-right focus:border-teal-500 outline-none"
+              className="w-full mb-3 p-3 rounded-xl bg-muted text-white border border-border text-right focus:border-primary outline-none"
               value={formData.phone}
               onChange={(e) => {
                 // السماح بالأرقام فقط وبحد أقصى 11 رقم
@@ -223,20 +223,20 @@ function AdminStaffs() {
               type="password"
               dir="ltr"
               minLength={6}
-              className="w-full mb-3 p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 text-right focus:border-teal-500 outline-none"
+              className="w-full mb-3 p-3 rounded-xl bg-muted text-white border border-border text-right focus:border-primary outline-none"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             />
 
             <select
-              className="w-full mb-6 p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 focus:border-teal-500 outline-none"
+              className="w-full mb-6 p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value as api.Role })}
             >
-              <option value="employee" className="bg-[#0c2221] text-white">
+              <option value="employee" className="bg-card text-white">
                 موظف
               </option>
-              <option value="admin" className="bg-[#0c2221] text-white">
+              <option value="admin" className="bg-card text-white">
                 مدير نظام
               </option>
             </select>
@@ -244,7 +244,7 @@ function AdminStaffs() {
             <div className="flex gap-3">
               <button
                 type="submit"
-                className="flex-1 bg-teal-600 hover:bg-teal-500 text-white py-2 rounded-xl font-bold transition-colors"
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-xl font-bold transition-colors"
               >
                 حفظ
               </button>

@@ -158,7 +158,7 @@ function AdminScanners() {
         className="p-8 text-center min-h-screen flex flex-col items-center justify-center"
         dir="rtl"
       >
-        <div className="bg-[#0c2221] border border-red-900/50 rounded-3xl p-8 max-w-md w-full flex flex-col items-center shadow-lg">
+        <div className="bg-card border border-red-900/50 rounded-3xl p-8 max-w-md w-full flex flex-col items-center shadow-lg">
           <ShieldX size={64} className="text-red-500 mb-4" />
           <h1 className="text-2xl font-bold text-white mb-2">غير مصرح بالدخول</h1>
           <p className="text-gray-400 text-sm mb-6">
@@ -166,7 +166,7 @@ function AdminScanners() {
           </p>
           <Link
             to="/"
-            className="bg-teal-600 hover:bg-teal-500 text-white font-bold px-6 py-3 rounded-xl transition-colors w-full"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6 py-3 rounded-xl transition-colors w-full"
           >
             العودة للصفحة الرئيسية
           </Link>
@@ -179,7 +179,7 @@ function AdminScanners() {
     <div className="p-8 text-right pb-24 min-h-screen" dir="rtl">
       <Link
         to="/admin"
-        className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 mb-6 bg-[#0c2221] px-4 py-2 rounded-xl border border-teal-900/50 transition-colors"
+        className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors"
       >
         <ArrowRight size={20} />
         <span>رجوع للوحة التحكم</span>
@@ -189,16 +189,16 @@ function AdminScanners() {
 
       <div id="qr-file-reader" className="hidden" />
 
-      <div className="max-w-md mx-auto bg-[#0c2221] rounded-3xl p-8 border border-teal-900/50 flex flex-col items-center text-center">
+      <div className="max-w-md mx-auto bg-card rounded-3xl p-8 border border-border flex flex-col items-center text-center">
         {scanStatus === "idle" && (
           <>
-            <div className="w-72 h-72 border-2 border-dashed border-teal-500/50 rounded-2xl flex items-center justify-center mb-4 relative overflow-hidden bg-black/30">
+            <div className="w-72 h-72 border-2 border-dashed border-primary/50 rounded-2xl flex items-center justify-center mb-4 relative overflow-hidden bg-black/30">
               {cameraActive ? (
                 <div id="qr-reader" className="w-full h-full" />
               ) : (
                 <>
                   <ScanLine size={64} className="text-teal-500/30 absolute animate-pulse" />
-                  <p className="text-teal-400/70 z-10 font-medium text-sm px-4">
+                  <p className="text-primary/70 z-10 font-medium text-sm px-4">
                     اضغط على &quot;تشغيل الكاميرا&quot; بالأسفل لتوجيهها نحو الـ QR Code
                   </p>
                 </>
@@ -210,7 +210,7 @@ function AdminScanners() {
                 <button
                   type="button"
                   onClick={() => void startCamera()}
-                  className="flex-1 bg-teal-600 hover:bg-teal-500 text-white py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors text-sm"
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors text-sm"
                 >
                   <Camera size={18} />
                   <span>تشغيل الكاميرا</span>
@@ -243,7 +243,7 @@ function AdminScanners() {
               />
             </div>
 
-            <div className="w-full border-t border-teal-900/40 pt-4">
+            <div className="w-full border-t border-border pt-4">
               <p className="text-xs text-gray-400 mb-2">
                 أو أدخل رقم الحجز يدوياً (مثال: MW-31A364)
               </p>
@@ -251,7 +251,7 @@ function AdminScanners() {
                 type="text"
                 dir="ltr"
                 placeholder="MW-31A364"
-                className="w-full p-3 rounded-xl bg-teal-900/20 text-white border border-teal-900/50 text-center mb-2 font-mono uppercase tracking-wider"
+                className="w-full p-3 rounded-xl bg-muted text-white border border-border text-center mb-2 font-mono uppercase tracking-wider"
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value)}
               />
@@ -275,7 +275,7 @@ function AdminScanners() {
             <p className="text-gray-400 text-sm mt-1" dir="ltr">
               {ticketData.userPhone}
             </p>
-            <p className="text-teal-400 text-xs mt-2 font-mono">{ticketData.code}</p>
+            <p className="text-primary text-xs mt-2 font-mono">{ticketData.code}</p>
           </div>
         )}
 

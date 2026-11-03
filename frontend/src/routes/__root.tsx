@@ -79,16 +79,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "موعد | حجز الفعاليات والكورسات" },
+      { title: "CTS | حجز الفعاليات والكورسات" },
       {
         name: "description",
         content:
-          "موعد (Maw'id): منصة عربية لحجز تذاكر الفعاليات والكورسات — تصفح، احجز، وادفع بالتحويل البنكي بسهولة.",
+          "CTS: منصة مصرية لحجز تذاكر الفعاليات والكورسات — تصفح، احجز، وادفع بالتحويل البنكي بسهولة.",
       },
-      { property: "og:title", content: "موعد | حجز الفعاليات والكورسات" },
+      { property: "og:title", content: "CTS | حجز الفعاليات والكورسات" },
       {
         property: "og:description",
-        content: "منصة عربية لحجز تذاكر الفعاليات والكورسات — احجز تذكرتك في دقائق.",
+        content: "منصة مصرية لحجز تذاكر الفعاليات والكورسات — احجز تذكرتك في دقائق.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

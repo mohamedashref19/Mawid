@@ -55,7 +55,7 @@ function AdminBookings() {
     <div className="p-8 text-right pb-24" dir="rtl">
       <Link
         to="/admin"
-        className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 mb-6 bg-[#0c2221] px-4 py-2 rounded-xl border border-teal-900/50 transition-colors"
+        className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors"
       >
         <ArrowRight size={20} />
         <span>رجوع للوحة التحكم</span>
@@ -63,10 +63,10 @@ function AdminBookings() {
 
       <h1 className="text-3xl font-bold text-white mb-6">إدارة الحجوزات</h1>
 
-      <div className="bg-[#0c2221] rounded-2xl p-4 border border-teal-900/30 overflow-x-auto">
+      <div className="bg-card rounded-2xl p-4 border border-border overflow-x-auto">
         <table className="w-full text-white min-w-[800px]">
           <thead>
-            <tr className="border-b border-teal-900/50 text-teal-400">
+            <tr className="border-b border-border text-primary">
               <th className="p-3 text-right">الاسم</th>
               <th className="p-3 text-right">رقم الموبايل</th>
               <th className="p-3 text-right">عدد التذاكر</th>
@@ -90,7 +90,7 @@ function AdminBookings() {
               </tr>
             ) : (
               bookings.map((booking) => (
-                <tr key={booking.id} className="border-b border-teal-900/20 hover:bg-teal-900/10">
+                <tr key={booking.id} className="border-b border-border hover:bg-muted/50">
                   <td className="p-3">{booking.userName}</td>
                   <td className="p-3" dir="ltr">
                     {booking.userPhone}

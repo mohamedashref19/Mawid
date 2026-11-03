@@ -28,9 +28,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/booking/$id")({
   head: () => ({
     meta: [
-      { title: "إتمام الحجز | موعد" },
+      { title: "إتمام الحجز | CTS " },
       { name: "description", content: "أكمل بيانات الحجز وارفع إيصال التحويل." },
-      { property: "og:title", content: "إتمام الحجز | موعد" },
+      { property: "og:title", content: "إتمام الحجز | CTS " },
       { property: "og:description", content: "أكمل بيانات الحجز وارفع إيصال التحويل." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

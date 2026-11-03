@@ -11,9 +11,9 @@ import type { ItemType } from "@/lib/api";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "موعد | حجز الفعاليات والكورسات" },
+      { title: "CTS  | حجز الفعاليات والكورسات" },
       { name: "description", content: "تصفح أحدث الفعاليات والكورسات واحجز تذكرتك في دقائق." },
-      { property: "og:title", content: "موعد | حجز الفعاليات والكورسات" },
+      { property: "og:title", content: "CTS  | حجز الفعاليات والكورسات" },
       {
         property: "og:description",
         content: "تصفح أحدث الفعاليات والكورسات واحجز تذكرتك في دقائق.",
@@ -45,11 +45,12 @@ function Index() {
   return (
     <div className="mx-auto max-w-5xl px-4">
       <header className="flex items-center gap-3 pt-6">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-glow">
-          <CalendarCheck className="size-6" />
+        {/* حاوية اللوجو مع لون الخلفية المضيء */}
+        <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-primary shadow-glow">
+          <img src="/logo.png" alt="CTS Logo" className="h-full w-full object-cover" />
         </div>
         <div>
-          <h1 className="text-xl font-extrabold text-foreground">Mawid</h1>
+          <h1 className="text-xl font-extrabold text-foreground">CTS</h1>
           <p className="text-xs text-muted-foreground">فعاليتك وكورساتك في مكان واحد</p>
         </div>
       </header>
