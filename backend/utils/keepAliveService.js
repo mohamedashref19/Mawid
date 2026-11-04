@@ -1,21 +1,22 @@
 const cron = require("node-cron");
 const axios = require("axios");
 
-// رابط السيرفر بتاعك على Render
-// لازم يكون الرابط الحقيقي اللي السيرفر شغال عليه (من .env أو ثابت)
-const SERVER_URL = process.env.SERVER_URL;
+// يقرأ SERVER_URL أو متغير Render التلقائي أو الرابط المباشر بتاعك كاحتياطي
+const SERVER_URL =
+  process.env.SERVER_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  "https://mawid-omug.onrender.com";
 
 const pingServer = async () => {
   try {
     const response = await axios.get(`${SERVER_URL}/`, {
-      timeout: 10000, // 10 ثواني timeout عشان ميعلقش لو السيرفر بيصحى من النوم
+      timeout: 10000,
     });
 
     console.log(
       `[Keep-Alive] Ping successful at ${new Date().toISOString()} - Status: ${response.status}`,
     );
   } catch (error) {
-    // لو فشل الـ ping، ممكن يكون السيرفر لسه بيصحى أو فيه مشكلة شبكة
     console.error(
       `[Keep-Alive] Ping failed at ${new Date().toISOString()}:`,
       error.message,
@@ -23,15 +24,14 @@ const pingServer = async () => {
   }
 };
 
-// تشغيل خدمة الـ Keep-Alive
 const startKeepAliveJob = () => {
-  // تشغيل كل ١٠ دقايق (لازم يكون أقل من ١٥ دقيقة عشان Render مينامش)
+  // يشتغل فقط على السيرفر الحقيقي أو لو حابب تجربه محلياً
   cron.schedule("*/10 * * * *", async () => {
     await pingServer();
   });
 
   console.log(
-    "The keep-alive service (Cron Job) has been activated - pinging every 10 minutes.",
+    `Keep-alive cron activated — pinging ${SERVER_URL} every 10 minutes.`,
   );
 };
 

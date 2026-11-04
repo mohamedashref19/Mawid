@@ -195,7 +195,8 @@ function AuthForms() {
     <div className="mx-auto max-w-md px-4 pt-8">
       <div className="text-center">
         <div className="mx-auto flex size-16 items-center justify-center rounded-3xl bg-primary text-primary-foreground shadow-glow">
-          <UserRound className="size-8" />
+          {/* <UserRound className="size-8" /> */}
+          <img src="/logo.png" alt="CTS Logo" className="h-full w-full object-cover" />
         </div>
         <h1 className="mt-3 text-xl font-extrabold text-foreground">
           {mode === "login" ? "تسجيل الدخول" : "إنشاء حساب جديد"}

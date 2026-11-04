@@ -11,7 +11,6 @@ const cookieParser = require("cookie-parser");
 const AppError = require("./utils/appError");
 const globalErrorHandler = require("./controllers/errorController");
 
-// TODO: هنعمل الـ Routers دي في الخطوات الجاية
 const userRouter = require("./routes/userRoutes");
 const eventRoutes = require("./routes/eventRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
@@ -33,6 +32,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   "http://localhost:5173", // پورت الفرونت إند بتاع Lovable (Vite)
   "http://localhost:8081",
+  "http://localhost:8080",
   "https://cts-alex.vercel.app",
 ].filter(Boolean);
 app.set("allowedOrigins", allowedOrigins);
@@ -91,12 +91,8 @@ app.use("/api/v1/events", eventRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
 // app.use("/api/v1/admin", adminRoutes);
 
-// Undefined Routes (مؤقتاً بنرد برسالة بسيطة لحد ما نعمل الـ AppError)
-app.all(/(.*)/, (req, res) => {
-  res.status(404).json({
-    status: "fail",
-    message: `Can't find ${req.originalUrl} on this server!`,
-  });
+app.all(/(.*)/, (req, res, next) => {
+  next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
 app.use(globalErrorHandler);
