@@ -5,8 +5,14 @@ const router = express.Router();
 
 // مسارات عامة (Public)
 router.post("/signup", authController.signup);
-router.post("/register", authController.signup); // متوافق مع api.ts في الفرونت إند
+router.post("/register", authController.signup);
 router.post("/login", authController.login);
+
+// مسارات التفعيل واستعادة كلمة المرور
+router.post("/verify-otp", authController.verifyOTP);
+router.post("/resend-otp", authController.resendOTP);
+router.post("/forgot-password", authController.forgotPassword);
+router.post("/reset-password", authController.resetPassword);
 
 // حماية كل المسارات القادمة (تتطلب تسجيل الدخول)
 router.use(authController.protect);

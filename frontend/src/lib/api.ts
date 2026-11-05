@@ -351,9 +351,12 @@ export async function register(input: {
   phone: string;
   email: string;
   password: string;
-}): Promise<{ token: string; user: User }> {
+}): Promise<{ token?: string; user?: User; requiresVerification?: boolean; email?: string }> {
   try {
-    const res = await apiClient.post("/users/signup", input);
+    const res = await apiClient.post("/users/signup", input); // أو register
+    if (res.data.requiresVerification) {
+      return { requiresVerification: true, email: res.data.email };
+    }
     const user = mapBackendUser(res.data.data.user as BackendUserRaw);
     const token = res.data.token as string;
     setToken(token);
@@ -367,9 +370,12 @@ export async function register(input: {
 export async function login(input: {
   phone: string;
   password: string;
-}): Promise<{ token: string; user: User }> {
+}): Promise<{ token?: string; user?: User; requiresVerification?: boolean; email?: string }> {
   try {
     const res = await apiClient.post("/users/login", input);
+    if (res.data.requiresVerification) {
+      return { requiresVerification: true, email: res.data.email };
+    }
     const user = mapBackendUser(res.data.data.user as BackendUserRaw);
     const token = res.data.token as string;
     setToken(token);
@@ -377,6 +383,56 @@ export async function login(input: {
     return { token, user };
   } catch (err: unknown) {
     throw new Error(extractErrorMessage(err, "رقم الهاتف أو كلمة المرور غير صحيحة"));
+  }
+}
+
+export async function verifyOTP(input: {
+  email: string;
+  otp: string;
+}): Promise<{ token: string; user: User }> {
+  try {
+    const res = await apiClient.post("/users/verify-otp", input);
+    const user = mapBackendUser(res.data.data.user as BackendUserRaw);
+    const token = res.data.token as string;
+    setToken(token);
+    saveLocalUser(user);
+    return { token, user };
+  } catch (err: unknown) {
+    throw new Error(extractErrorMessage(err, "كود التفعيل غير صحيح"));
+  }
+}
+
+export async function resendOTP(email: string): Promise<void> {
+  try {
+    await apiClient.post("/users/resend-otp", { email });
+  } catch (err: unknown) {
+    throw new Error(extractErrorMessage(err, "فشل إعادة إرسال الكود"));
+  }
+}
+
+export async function forgotPassword(email: string): Promise<void> {
+  try {
+    await apiClient.post("/users/forgot-password", { email });
+  } catch (err: unknown) {
+    throw new Error(extractErrorMessage(err, "فشل إرسال كود الاستعادة"));
+  }
+}
+
+export async function resetPassword(input: {
+  email: string;
+  otp: string;
+  password: string;
+  passwordConfirm: string;
+}): Promise<{ token: string; user: User }> {
+  try {
+    const res = await apiClient.post("/users/reset-password", input);
+    const user = mapBackendUser(res.data.data.user as BackendUserRaw);
+    const token = res.data.token as string;
+    setToken(token);
+    saveLocalUser(user);
+    return { token, user };
+  } catch (err: unknown) {
+    throw new Error(extractErrorMessage(err, "فشل إعادة تعيين كلمة المرور"));
   }
 }
 
@@ -770,5 +826,32 @@ export async function adminDeleteStaff(id: string): Promise<void> {
     await apiClient.delete(`/users/staff/${id}`);
   } catch (err: unknown) {
     throw new Error(extractErrorMessage(err, "تعذر حذف حساب الموظف"));
+  }
+}
+
+// تحديث البيانات (الاسم فقط)
+export async function updateProfile(data: { name: string }): Promise<User> {
+  try {
+    // استخدمنا /update-me عشان يطابق userRoutes.js بتاعك
+    const res = await apiClient.patch("/users/update-me", data);
+    const user = mapBackendUser(res.data.data.user);
+    saveLocalUser(user);
+    return user;
+  } catch (err: unknown) {
+    throw new Error(extractErrorMessage(err, "فشل تحديث البيانات"));
+  }
+}
+
+// تحديث كلمة المرور
+export async function updatePassword(data: {
+  passwordCurrent: string;
+  password: string;
+  passwordConfirm: string;
+}): Promise<void> {
+  try {
+    // استخدمنا /update-password عشان يطابق userRoutes.js بتاعك
+    await apiClient.patch("/users/update-password", data);
+  } catch (err: unknown) {
+    throw new Error(extractErrorMessage(err, "فشل تحديث كلمة المرور"));
   }
 }

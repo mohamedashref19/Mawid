@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { ArrowRight, Plus, Edit, Trash2, ImagePlus, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import * as api from "@/lib/api";
+import { useRequireRole } from "@/hooks/use-auth";
+import { ConfirmModal } from "@/components/ConfirmModal"; // إضافة الـ Modal المخصص
 
 export const Route = createFileRoute("/admin/events")({
   component: AdminEvents,
@@ -25,6 +27,7 @@ const INITIAL_FORM: api.NewItemInput = {
 };
 
 function AdminEvents() {
+  const { ready } = useRequireRole(["admin", "employee"]);
   const todayDate = new Date().toISOString().slice(0, 10);
   const [events, setEvents] = useState<api.Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +37,9 @@ function AdminEvents() {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<api.NewItemInput>(INITIAL_FORM);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // حالة المودال لحذف الفعالية
+  const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
 
   const fetchEvents = async () => {
     try {
@@ -47,8 +53,13 @@ function AdminEvents() {
   };
 
   useEffect(() => {
-    void fetchEvents();
-  }, []);
+    if (ready) {
+      void fetchEvents();
+    }
+  }, [ready]);
+
+  // إخفاء المحتوى تماماً إذا لم تكتمل الصلاحية
+  if (!ready) return null;
 
   const openCreateForm = () => {
     setEditId(null);
@@ -145,14 +156,16 @@ function AdminEvents() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("هل أنت متأكد من حذف هذه الفعالية نهائياً؟")) return;
+  const executeDelete = async () => {
+    if (!deleteEventId) return;
     try {
-      await api.adminDeleteItem(id);
+      await api.adminDeleteItem(deleteEventId);
       toast.success("تم الحذف بنجاح");
       await fetchEvents();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "حدث خطأ أثناء الحذف");
+    } finally {
+      setDeleteEventId(null);
     }
   };
 
@@ -162,20 +175,20 @@ function AdminEvents() {
         <button
           type="button"
           onClick={closeForm}
-          className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors"
+          className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors font-bold"
         >
           <ArrowRight size={20} />
           <span>رجوع لقائمة الفعاليات</span>
         </button>
 
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-foreground">
             {editId ? "تعديل الفعالية" : "إضافة فعالية جديدة"}
           </h1>
           <button
             type="button"
             onClick={closeForm}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={24} />
           </button>
@@ -183,14 +196,13 @@ function AdminEvents() {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-card rounded-3xl p-6 border border-border space-y-6"
+          className="bg-card rounded-3xl p-6 border border-border space-y-6 shadow-card"
         >
-          {/* رفع الصورة */}
           <div className="space-y-2">
             <label className="text-primary block font-bold">صورة الغلاف</label>
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="w-full h-48 border-2 border-dashed border-primary/50 rounded-2xl flex flex-col items-center justify-center cursor-pointer overflow-hidden hover:bg-muted transition-colors relative group"
+              className="w-full h-48 border-2 border-dashed border-primary/50 rounded-2xl flex flex-col items-center justify-center cursor-pointer overflow-hidden hover:bg-muted/50 transition-colors relative group"
             >
               {form.image ? (
                 <>
@@ -201,8 +213,8 @@ function AdminEvents() {
                 </>
               ) : (
                 <>
-                  <ImagePlus size={40} className="text-teal-500/50 mb-2" />
-                  <p className="text-primary/50 text-sm">اضغط لاختيار صورة (JPG, PNG)</p>
+                  <ImagePlus size={40} className="text-primary/50 mb-2" />
+                  <p className="text-primary/50 text-sm font-bold">اضغط لاختيار صورة (JPG, PNG)</p>
                 </>
               )}
               <input
@@ -215,7 +227,6 @@ function AdminEvents() {
             </div>
           </div>
 
-          {/* العنوان والنوع */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-primary block font-bold">العنوان</label>
@@ -223,7 +234,7 @@ function AdminEvents() {
                 type="text"
                 required
                 placeholder="مثال: كورس برمجة متقدم"
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
@@ -231,7 +242,7 @@ function AdminEvents() {
             <div className="space-y-2">
               <label className="text-primary block font-bold">النوع</label>
               <select
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                 value={form.type}
                 onChange={(e) => {
                   const newType = e.target.value as api.ItemType;
@@ -242,32 +253,31 @@ function AdminEvents() {
                   });
                 }}
               >
-                <option value="course" className="bg-card">
+                <option value="course" className="bg-card text-foreground">
                   كورس
                 </option>
-                <option value="event" className="bg-card">
+                <option value="event" className="bg-card text-foreground">
                   ايفنت
                 </option>
               </select>
             </div>
           </div>
 
-          {/* خيارات الكورس: أونلاين أم أوفلاين */}
           {form.type === "course" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4">
               <div className="space-y-2">
                 <label className="text-primary block font-bold">نظام حضور الكورس</label>
                 <select
-                  className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                  className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                   value={form.attendanceMode}
                   onChange={(e) =>
                     setForm({ ...form, attendanceMode: e.target.value as api.AttendanceMode })
                   }
                 >
-                  <option value="online" className="bg-card">
+                  <option value="online" className="bg-card text-foreground">
                     أونلاين (رابط انضمام / رسالة)
                   </option>
-                  <option value="offline" className="bg-card">
+                  <option value="offline" className="bg-card text-foreground">
                     أوفلاين في المقر (تذكرة QR Code)
                   </option>
                 </select>
@@ -276,14 +286,14 @@ function AdminEvents() {
               {form.attendanceMode === "online" && (
                 <div className="space-y-2">
                   <label className="text-primary block font-bold">
-                    رابط الانضمام (واتساب / زوم) أو رسالة التوجيه
+                    رابط الانضمام أو رسالة التوجيه
                   </label>
                   <input
                     type="text"
                     required
                     dir="auto"
-                    placeholder="https://chat.whatsapp.com/... أو تواصل معنا على رقم..."
-                    className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                    placeholder="https://chat.whatsapp.com/... أو تواصل معنا..."
+                    className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                     value={form.accessLink ?? ""}
                     onChange={(e) => setForm({ ...form, accessLink: e.target.value })}
                   />
@@ -292,7 +302,6 @@ function AdminEvents() {
             </div>
           )}
 
-          {/* التاريخ والوقت */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-primary block font-bold">التاريخ</label>
@@ -300,7 +309,7 @@ function AdminEvents() {
                 type="date"
                 required
                 min={todayDate}
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
               />
@@ -310,14 +319,13 @@ function AdminEvents() {
               <input
                 type="time"
                 required
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                 value={form.time}
                 onChange={(e) => setForm({ ...form, time: e.target.value })}
               />
             </div>
           </div>
 
-          {/* السعر والسعة والمكان */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-primary block font-bold">السعر (ج.م)</label>
@@ -326,7 +334,7 @@ function AdminEvents() {
                 required
                 min="0"
                 placeholder="0"
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                 value={form.price === 0 ? "" : form.price}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -335,20 +343,18 @@ function AdminEvents() {
                     return;
                   }
                   const num = Number(raw);
-                  if (!isNaN(num) && num >= 0) {
-                    setForm({ ...form, price: num });
-                  }
+                  if (!isNaN(num) && num >= 0) setForm({ ...form, price: num });
                 }}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-primary block font-bold">السعة (عدد الأشخاص)</label>
+              <label className="text-primary block font-bold">السعة</label>
               <input
                 type="number"
                 required
                 min="1"
                 placeholder="50"
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                 value={form.capacity === 0 ? "" : form.capacity}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -357,9 +363,7 @@ function AdminEvents() {
                     return;
                   }
                   const num = Number(raw);
-                  if (!isNaN(num) && num >= 0) {
-                    setForm({ ...form, capacity: num });
-                  }
+                  if (!isNaN(num) && num >= 0) setForm({ ...form, capacity: num });
                 }}
               />
             </div>
@@ -370,36 +374,34 @@ function AdminEvents() {
                 required
                 placeholder={
                   form.type === "course" && form.attendanceMode === "online"
-                    ? "مثال: أونلاين (Zoom / جروب واتساب)"
-                    : "مثال: قاعة سموحة - الإسكندرية"
+                    ? "أونلاين (Zoom / جروب واتساب)"
+                    : "قاعة سموحة - الإسكندرية"
                 }
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
             </div>
           </div>
 
-          {/* إعدادات الدفع */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-6">
             <div className="space-y-2">
               <label className="text-primary block font-bold">طريقة الدفع المطلوبة</label>
               <select
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                 value={form.paymentMethod}
                 onChange={(e) =>
                   setForm({ ...form, paymentMethod: e.target.value as api.PaymentMethod })
                 }
               >
-                <option value="wallet" className="bg-card">
+                <option value="wallet" className="bg-card text-foreground">
                   محفظة إلكترونية
                 </option>
-                <option value="instapay" className="bg-card">
+                <option value="instapay" className="bg-card text-foreground">
                   انستا باي (InstaPay)
                 </option>
               </select>
             </div>
-
             <div className="space-y-2">
               <label className="text-primary block font-bold">
                 {form.paymentMethod === "wallet"
@@ -411,31 +413,29 @@ function AdminEvents() {
                 required
                 dir="ltr"
                 placeholder={form.paymentMethod === "wallet" ? "010xxxxxxxx" : "name@instapay"}
-                className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none text-right"
+                className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none text-right focus:ring-1 focus:ring-primary transition-all"
                 value={form.paymentTarget}
                 onChange={(e) => setForm({ ...form, paymentTarget: e.target.value })}
               />
             </div>
           </div>
 
-          {/* الوصف */}
           <div className="space-y-2">
             <label className="text-primary block font-bold">التفاصيل والوصف</label>
             <textarea
               required
               rows={4}
               placeholder="اكتب وصفاً جذاباً للفعالية وما سيتعلمه الحضور..."
-              className="w-full p-3 rounded-xl bg-muted text-white border border-border focus:border-primary outline-none resize-none"
+              className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none resize-none focus:ring-1 focus:ring-primary transition-all"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </div>
 
-          {/* زر الحفظ */}
           <button
             type="submit"
             disabled={busy}
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-glow"
           >
             {busy ? (
               "جاري الحفظ..."
@@ -452,105 +452,130 @@ function AdminEvents() {
   }
 
   return (
-    <div className="p-8 text-right pb-24" dir="rtl">
+    <div className="p-8 text-right pb-24 relative" dir="rtl">
       <Link
         to="/admin"
-        className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors"
+        className="inline-flex items-center gap-2 text-primary hover:text-primary/80 mb-6 bg-card px-4 py-2 rounded-xl border border-border transition-colors font-bold"
       >
         <ArrowRight size={20} />
         <span>رجوع للوحة التحكم</span>
       </Link>
 
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-white">إدارة الفعاليات والكورسات</h1>
+        <h1 className="text-3xl font-extrabold text-foreground">إدارة الفعاليات والكورسات</h1>
         <button
           type="button"
           onClick={openCreateForm}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 transition-colors font-bold shadow-glow"
         >
           <Plus size={20} />
           <span>إضافة جديد</span>
         </button>
       </div>
 
-      <div className="bg-card rounded-2xl p-4 border border-border overflow-x-auto">
-        <table className="w-full text-white min-w-[800px]">
+      <div className="bg-card rounded-3xl p-4 border border-border shadow-card overflow-x-auto">
+        <table className="w-full text-foreground min-w-[850px]">
           <thead>
-            <tr className="border-b border-border text-primary">
-              <th className="p-3 text-right">العنوان</th>
-              <th className="p-3 text-right">النوع</th>
-              <th className="p-3 text-right">التاريخ</th>
-              <th className="p-3 text-right">السعر</th>
-              <th className="p-3 text-right">السعة</th>
-              <th className="p-3 text-center">الإجراءات</th>
+            <tr className="border-b border-border/50 text-primary">
+              <th className="p-4 text-right font-extrabold">العنوان</th>
+              <th className="p-4 text-right font-extrabold">النوع</th>
+              <th className="p-4 text-right font-extrabold">التاريخ</th>
+              <th className="p-4 text-right font-extrabold">السعر</th>
+              <th className="p-4 text-center font-extrabold">السعة (محجوز / كلي)</th>
+              <th className="p-4 text-center font-extrabold">الإجراءات</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="text-center p-4">
+                <td colSpan={6} className="text-center p-8 font-bold text-muted-foreground">
                   جاري التحميل...
                 </td>
               </tr>
             ) : events.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center p-4">
+                <td colSpan={6} className="text-center p-8 font-bold text-muted-foreground">
                   لا توجد فعاليات مضافة
                 </td>
               </tr>
             ) : (
-              events.map((item) => (
-                <tr key={item.id} className="border-b border-border hover:bg-muted/50">
-                  <td className="p-3 flex items-center gap-3">
-                    {item.image && (
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        className="w-10 h-10 rounded object-cover border border-border"
-                      />
-                    )}
-                    <span>{item.title}</span>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-1 rounded text-sm ${
-                        item.type === "event"
-                          ? "bg-purple-500/20 text-purple-300"
-                          : "bg-blue-500/20 text-blue-300"
-                      }`}
-                    >
-                      {item.type === "course"
-                        ? `كورس (${item.attendanceMode === "online" ? "أونلاين" : "أوفلاين"})`
-                        : "ايفنت"}
-                    </span>
-                  </td>
-                  <td className="p-3" dir="ltr">
-                    {item.date}
-                  </td>
-                  <td className="p-3">{item.price} ج.م</td>
-                  <td className="p-3">{item.capacity} شخص</td>
-                  <td className="p-3 flex justify-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => openEditForm(item)}
-                      className="text-primary hover:text-primary/80 transition-colors mt-2"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(item.id)}
-                      className="text-red-500 hover:text-red-400 transition-colors mt-2"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))
+              events.map((item) => {
+                const booked = api.bookedSeatsSync(item.id);
+                const isFull = booked >= item.capacity;
+
+                return (
+                  <tr
+                    key={item.id}
+                    className="border-b border-border/30 hover:bg-muted/30 transition-colors"
+                  >
+                    <td className="p-4 flex items-center gap-3">
+                      {item.image && (
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          className="w-12 h-12 rounded-lg object-cover border border-border/50"
+                        />
+                      )}
+                      <span className="font-bold">{item.title}</span>
+                    </td>
+                    <td className="p-4">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${item.type === "event" ? "bg-primary/20 text-primary" : "bg-accent/40 text-foreground"}`}
+                      >
+                        {item.type === "course"
+                          ? `كورس (${item.attendanceMode === "online" ? "أونلاين" : "أوفلاين"})`
+                          : "ايفنت"}
+                      </span>
+                    </td>
+                    <td className="p-4 font-bold text-muted-foreground" dir="ltr">
+                      {item.date}
+                    </td>
+                    <td className="p-4 font-bold">{item.price} ج.م</td>
+                    <td className="p-4 text-center">
+                      <div
+                        className={`inline-flex items-center gap-1 font-bold ${isFull ? "text-destructive" : "text-foreground"}`}
+                      >
+                        <span dir="ltr">
+                          {booked} / {item.capacity}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-4 flex justify-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(item)}
+                        className="text-primary hover:text-primary/80 transition-colors mt-2"
+                        title="تعديل الفعالية"
+                      >
+                        <Edit size={20} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteEventId(item.id)}
+                        className="text-destructive hover:text-destructive/80 transition-colors mt-2"
+                        title="حذف نهائي"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+
+      {/* المودال المخصص للحذف */}
+      <ConfirmModal
+        isOpen={!!deleteEventId}
+        title="حذف الفعالية"
+        message="هل أنت متأكد من حذف هذه الفعالية نهائياً؟ لا يمكن التراجع عن هذا الإجراء."
+        confirmText="نعم، احذف"
+        isDestructive={true}
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteEventId(null)}
+      />
     </div>
   );
 }

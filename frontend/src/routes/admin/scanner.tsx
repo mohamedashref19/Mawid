@@ -146,7 +146,7 @@ function AdminScanners() {
         className="p-8 text-center text-white min-h-screen flex items-center justify-center"
         dir="rtl"
       >
-        جاري التحقق من الصلاحيات...
+        جاري التحميل...
       </div>
     );
   }

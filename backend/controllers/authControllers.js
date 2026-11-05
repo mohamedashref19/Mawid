@@ -4,7 +4,7 @@ const { promisify } = require("util");
 const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
-// const Email = require("../utils/email"); // فعلها لو ضفت ملف الإيميلات لاحقاً
+const Email = require("../utils/email"); // تم تفعيل ملف الإيميلات
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
@@ -95,7 +95,6 @@ const createAndSendToken = (user, statusCode, res) => {
 // ---------------- التسجيل والدخول ----------------
 
 exports.signup = catchAsync(async (req, res, next) => {
-  // التأكد من وجود الإيميل ورقم الهاتف
   if (!req.body.phone || !req.body.email) {
     return next(new AppError("يرجى إدخال البريد الإلكتروني ورقم الهاتف", 400));
   }
@@ -103,18 +102,48 @@ exports.signup = catchAsync(async (req, res, next) => {
   const cleanPhone = sanitizePhone(req.body.phone);
   const cleanEmail = sanitizeEmail(req.body.email);
 
-  // التحقق إن الرقم أو الإيميل مش متسجلين قبل كده
   const existingUser = await User.findOne({
     $or: [{ phone: cleanPhone }, { email: cleanEmail }],
-  });
+  }).select("+otp +otpExpires");
+
+  const otpCode = generateOTP();
+  const otpExpiresTime = new Date(Date.now() + OTP_TTL_MS);
 
   if (existingUser) {
-    return next(
-      new AppError(
-        "رقم الهاتف أو البريد الإلكتروني مستخدم بالفعل، يرجى تسجيل الدخول.",
-        400,
-      ),
-    );
+    if (existingUser.verified) {
+      return next(
+        new AppError(
+          "رقم الهاتف أو البريد الإلكتروني مستخدم بالفعل، يرجى تسجيل الدخول.",
+          400,
+        ),
+      );
+    }
+
+    existingUser.name = req.body.name?.trim() || existingUser.name;
+    existingUser.phone = cleanPhone;
+    existingUser.email = cleanEmail;
+    existingUser.password = req.body.password;
+    existingUser.passwordConfirm =
+      req.body.passwordConfirm || req.body.password;
+    existingUser.otp = otpCode;
+    existingUser.otpExpires = otpExpiresTime;
+    await existingUser.save();
+
+    try {
+      await new Email(existingUser).sendOTP(otpCode);
+    } catch (err) {
+      console.error("Failed to send OTP email:", err);
+      return next(
+        new AppError("حدث خطأ أثناء إرسال كود التفعيل للبريد الإلكتروني", 500),
+      );
+    }
+
+    return res.status(200).json({
+      status: "success",
+      requiresVerification: true,
+      email: cleanEmail,
+      message: "تم إرسال كود التفعيل إلى بريدك الإلكتروني",
+    });
   }
 
   const newUser = await User.create({
@@ -124,10 +153,29 @@ exports.signup = catchAsync(async (req, res, next) => {
     password: req.body.password,
     passwordConfirm: req.body.passwordConfirm || req.body.password,
     role: "user",
-    verified: true,
+    verified: false,
+    otp: otpCode,
+    otpExpires: otpExpiresTime,
   });
 
-  createAndSendToken(newUser, 201, res);
+  try {
+    await new Email(newUser).sendOTP(otpCode);
+  } catch (err) {
+    console.error("Failed to send OTP email:", err);
+    return next(
+      new AppError(
+        "تم إنشاء الحساب ولكن تعذر إرسال كود التفعيل، جرب إعادة الإرسال.",
+        500,
+      ),
+    );
+  }
+
+  res.status(201).json({
+    status: "success",
+    requiresVerification: true,
+    email: cleanEmail,
+    message: "تم إنشاء الحساب وإرسال كود التفعيل إلى بريدك الإلكتروني",
+  });
 });
 
 exports.login = catchAsync(async (req, res, next) => {
@@ -138,21 +186,216 @@ exports.login = catchAsync(async (req, res, next) => {
     return next(new AppError("يرجى تقديم رقم الهاتف وكلمة المرور", 400));
   }
 
-  const user = await User.findOne({ phone }).select("+password");
+  const user = await User.findOne({ phone }).select(
+    "+password +otp +otpExpires",
+  );
 
   if (!user || !(await user.correctPassword(password, user.password))) {
     return next(new AppError("رقم الهاتف أو كلمة المرور غير صحيحة", 401));
   }
 
+  if (user.verified === false && user.role === "user") {
+    if (!issuedRecently(user.otpExpires)) {
+      const otpCode = generateOTP();
+      user.otp = otpCode;
+      user.otpExpires = new Date(Date.now() + OTP_TTL_MS);
+      await user.save({ validateBeforeSave: false });
+
+      try {
+        await new Email(user).sendOTP(otpCode);
+      } catch (err) {
+        console.error("Failed to send login OTP:", err);
+      }
+    }
+
+    return res.status(200).json({
+      status: "success",
+      requiresVerification: true,
+      email: user.email,
+      message:
+        "يرجى تفعيل حسابك أولاً. تم إرسال كود التفعيل لبريدك الإلكتروني.",
+    });
+  }
+
   createAndSendToken(user, 200, res);
 });
+
+// ---------------- التحقق من الـ OTP وإعادة الإرسال ----------------
+
+exports.verifyOTP = catchAsync(async (req, res, next) => {
+  const cleanEmail = sanitizeEmail(req.body.email);
+  const otpCode = normalizeOtp(req.body.otp)?.trim();
+
+  if (!cleanEmail || !otpCode) {
+    return next(new AppError("يرجى إدخال البريد الإلكتروني وكود التفعيل", 400));
+  }
+
+  if (isOtpLocked(`verify:${cleanEmail}`)) {
+    return next(
+      new AppError("محاولات خاطئة كثيرة! يرجى الانتظار والمحاولة مجدداً.", 429),
+    );
+  }
+
+  const user = await User.findOne({ email: cleanEmail }).select(
+    "+otp +otpExpires",
+  );
+
+  if (
+    !user ||
+    !user.otp ||
+    user.otp !== otpCode ||
+    !user.otpExpires ||
+    user.otpExpires < Date.now()
+  ) {
+    registerOtpFailure(`verify:${cleanEmail}`);
+    return next(new AppError("كود التفعيل غير صحيح أو منتهي الصلاحية", 400));
+  }
+
+  clearOtpFailures(`verify:${cleanEmail}`);
+
+  user.verified = true;
+  user.otp = undefined;
+  user.otpExpires = undefined;
+  await user.save({ validateBeforeSave: false });
+
+  new Email(user)
+    .sendWelcome()
+    .catch((err) => console.error("Welcome email error:", err));
+
+  createAndSendToken(user, 200, res);
+});
+
+exports.resendOTP = catchAsync(async (req, res, next) => {
+  const cleanEmail = sanitizeEmail(req.body.email);
+  if (!cleanEmail) {
+    return next(new AppError("يرجى إدخال البريد الإلكتروني", 400));
+  }
+
+  const user = await User.findOne({ email: cleanEmail }).select(
+    "+otp +otpExpires",
+  );
+  if (!user) {
+    return next(new AppError("لا يوجد حساب مسجل بهذا البريد الإلكتروني", 404));
+  }
+
+  if (user.verified) {
+    return next(
+      new AppError("هذا الحساب مفعل بالفعل، يمكنك تسجيل الدخول", 400),
+    );
+  }
+
+  if (issuedRecently(user.otpExpires)) {
+    return next(
+      new AppError("يرجى الانتظار دقيقة واحدة قبل طلب كود جديد", 429),
+    );
+  }
+
+  const otpCode = generateOTP();
+  user.otp = otpCode;
+  user.otpExpires = new Date(Date.now() + OTP_TTL_MS);
+  await user.save({ validateBeforeSave: false });
+
+  await new Email(user).sendOTP(otpCode);
+
+  res.status(200).json({
+    status: "success",
+    message: "تم إعادة إرسال كود التفعيل إلى بريدك الإلكتروني",
+  });
+});
+
+// ---------------- استعادة كلمة المرور ----------------
+
+exports.forgotPassword = catchAsync(async (req, res, next) => {
+  const cleanEmail = sanitizeEmail(req.body.email);
+  if (!cleanEmail)
+    return next(new AppError("يرجى إدخال البريد الإلكتروني", 400));
+
+  const user = await User.findOne({ email: cleanEmail }).select(
+    "+passwordResetOTP +passwordResetOTPExpires",
+  );
+  if (!user)
+    return next(
+      new AppError("لا يوجد مستخدم مسجل بهذا البريد الإلكتروني", 404),
+    );
+
+  if (issuedRecently(user.passwordResetOTPExpires)) {
+    return next(new AppError("يرجى الانتظار دقيقة قبل طلب كود جديد", 429));
+  }
+
+  const otpCode = generateOTP();
+  user.passwordResetOTP = otpCode;
+  user.passwordResetOTPExpires = new Date(Date.now() + OTP_TTL_MS);
+  await user.save({ validateBeforeSave: false });
+
+  try {
+    await new Email(user).sendPasswordResetOTP(otpCode);
+    res.status(200).json({
+      status: "success",
+      message: "تم إرسال كود استعادة كلمة المرور إلى بريدك الإلكتروني",
+    });
+  } catch (err) {
+    user.passwordResetOTP = undefined;
+    user.passwordResetOTPExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+    return next(
+      new AppError("حدث خطأ أثناء إرسال الإيميل، يرجى المحاولة لاحقاً", 500),
+    );
+  }
+});
+
+exports.resetPassword = catchAsync(async (req, res, next) => {
+  const cleanEmail = sanitizeEmail(req.body.email);
+  const otpCode = normalizeOtp(req.body.otp)?.trim();
+  const { password, passwordConfirm } = req.body;
+
+  if (!cleanEmail || !otpCode || !password) {
+    return next(
+      new AppError(
+        "يرجى إدخال البريد الإلكتروني، الكود، وكلمة المرور الجديدة",
+        400,
+      ),
+    );
+  }
+
+  if (isOtpLocked(`reset:${cleanEmail}`)) {
+    return next(
+      new AppError("محاولات خاطئة كثيرة! يرجى الانتظار والمحاولة مجدداً.", 429),
+    );
+  }
+
+  const user = await User.findOne({ email: cleanEmail }).select(
+    "+passwordResetOTP +passwordResetOTPExpires",
+  );
+
+  if (
+    !user ||
+    !user.passwordResetOTP ||
+    user.passwordResetOTP !== otpCode ||
+    !user.passwordResetOTPExpires ||
+    user.passwordResetOTPExpires < Date.now()
+  ) {
+    registerOtpFailure(`reset:${cleanEmail}`);
+    return next(new AppError("الكود غير صحيح أو منتهي الصلاحية", 400));
+  }
+
+  clearOtpFailures(`reset:${cleanEmail}`);
+
+  user.password = password;
+  user.passwordConfirm = passwordConfirm || password;
+  user.passwordResetOTP = undefined;
+  user.passwordResetOTPExpires = undefined;
+  user.verified = true;
+  await user.save();
+
+  createAndSendToken(user, 200, res);
+});
+
+// ---------------- باقي الدوال (بدون تغيير) ----------------
 
 exports.getMe = catchAsync(async (req, res, next) => {
   res.status(200).json({
     status: "success",
-    data: {
-      user: req.user,
-    },
+    data: { user: req.user },
   });
 });
 
@@ -163,8 +406,6 @@ exports.logout = (req, res) => {
   });
   res.status(200).json({ status: "success" });
 };
-
-// ---------------- الحماية والصلاحيات (Middlewares) ----------------
 
 exports.protect = catchAsync(async (req, res, next) => {
   let token;
@@ -206,19 +447,13 @@ exports.protect = catchAsync(async (req, res, next) => {
 
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
-    if (!req.user) {
-      return next(
-        new AppError("يرجى تسجيل الدخول للوصول إلى هذه الميزة.", 401),
-      );
-    }
+    if (!req.user) return next(new AppError("يرجى تسجيل الدخول.", 401));
     if (!roles.includes(req.user.role)) {
-      return next(new AppError("ليس لديك الصلاحية للقيام بهذا الإجراء", 403));
+      return next(new AppError("ليس لديك الصلاحية", 403));
     }
     next();
   };
 };
-
-// ---------------- تحديث بيانات المستخدم ----------------
 
 exports.updatePassword = catchAsync(async (req, res, next) => {
   const user = await User.findById(req.user.id).select("+password");
@@ -235,91 +470,55 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 
 exports.updateMe = catchAsync(async (req, res, next) => {
   if (req.body.password || req.body.passwordConfirm) {
-    return next(
-      new AppError(
-        "هذا المسار مخصص لتحديث البيانات الشخصية فقط، وليس كلمة المرور.",
-        400,
-      ),
-    );
+    return next(new AppError("هذا المسار مخصص لتحديث البيانات فقط.", 400));
   }
 
   const filteredBody = {};
   if (req.body.name) filteredBody.name = req.body.name.trim();
-  if (req.body.email) filteredBody.email = sanitizeEmail(req.body.email);
 
   const updatedUser = await User.findByIdAndUpdate(req.user.id, filteredBody, {
     returnDocument: "after",
     runValidators: true,
   });
 
-  res.status(200).json({
-    status: "success",
-    data: {
-      user: updatedUser,
-    },
-  });
+  res.status(200).json({ status: "success", data: { user: updatedUser } });
 });
 
 exports.deleteMe = catchAsync(async (req, res, next) => {
   await User.findByIdAndUpdate(req.user.id, { isActive: false });
-
   res.cookie("jwt", "loggedout", {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
   });
-
-  res.status(204).json({
-    status: "success",
-    data: null,
-  });
+  res.status(204).json({ status: "success", data: null });
 });
-
-// ---------------- إدارة الموظفين والأدمن (Staff Management) ----------------
 
 exports.getAllStaff = catchAsync(async (req, res, next) => {
   const staff = await User.find({ role: { $in: ["admin", "employee"] } }).sort(
     "-createdAt",
   );
-
-  res.status(200).json({
-    status: "success",
-    results: staff.length,
-    data: {
-      staff,
-    },
-  });
+  res
+    .status(200)
+    .json({ status: "success", results: staff.length, data: { staff } });
 });
 
 exports.createStaff = catchAsync(async (req, res, next) => {
   const { name, phone, email, password, role } = req.body;
-
-  // التأكد من كل البيانات
   if (!name || !phone || !email || !password) {
-    return next(
-      new AppError(
-        "يرجى إدخال الاسم، البريد الإلكتروني، رقم الهاتف، وكلمة المرور",
-        400,
-      ),
-    );
+    return next(new AppError("يرجى إدخال جميع البيانات", 400));
   }
 
   const staffRole = role === "admin" ? "admin" : "employee";
   const cleanPhone = sanitizePhone(phone);
   const cleanEmail = sanitizeEmail(email);
 
-  // التحقق إن الموظف مش متسجل قبل كده
   const existing = await User.findOne({
     $or: [{ phone: cleanPhone }, { email: cleanEmail }],
   });
-
-  if (existing) {
+  if (existing)
     return next(
-      new AppError(
-        "رقم الهاتف أو البريد الإلكتروني مسجل مسبقاً لمستخدم آخر",
-        400,
-      ),
+      new AppError("رقم الهاتف أو البريد الإلكتروني مسجل مسبقاً", 400),
     );
-  }
 
   const newStaff = await User.create({
     name: name.trim(),
@@ -331,29 +530,17 @@ exports.createStaff = catchAsync(async (req, res, next) => {
   });
 
   newStaff.password = undefined;
-
-  res.status(201).json({
-    status: "success",
-    data: {
-      staff: newStaff,
-    },
-  });
+  res.status(201).json({ status: "success", data: { staff: newStaff } });
 });
 
 exports.deleteStaff = catchAsync(async (req, res, next) => {
-  if (req.params.id === req.user.id) {
-    return next(new AppError("لا يمكنك حذف حسابك الشخصي كمدير نظام!", 400));
-  }
+  if (req.params.id === req.user.id)
+    return next(new AppError("لا يمكنك حذف حسابك الشخصي!", 400));
 
   const staff = await User.findByIdAndUpdate(req.params.id, {
     isActive: false,
   });
-  if (!staff) {
-    return next(new AppError("لم يتم العثور على هذا الحساب", 404));
-  }
+  if (!staff) return next(new AppError("لم يتم العثور على الحساب", 404));
 
-  res.status(204).json({
-    status: "success",
-    data: null,
-  });
+  res.status(204).json({ status: "success", data: null });
 });

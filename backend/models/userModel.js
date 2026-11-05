@@ -58,7 +58,7 @@ const userSchema = new mongoose.Schema(
     },
     verified: {
       type: Boolean,
-      default: true, // مفعل افتراضياً لتسريع تجربة الحجز
+      default: false,
     },
     otp: { type: String, select: false },
     otpExpires: Date,
