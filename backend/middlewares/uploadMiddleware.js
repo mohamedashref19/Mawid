@@ -10,23 +10,29 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// إعداد التخزين لصور الفعاليات
 const eventStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "events", // اسم المجلد الذي سيتم إنشاؤه في Cloudinary
+    folder: "events",
     allowed_formats: ["jpg", "png", "jpeg", "webp"],
     public_id: (req, file) => `event-${Date.now()}`,
+    // التعديل هنا: تحويل تلقائي لصيغة webp وضغط ذكي
+    transformation: [
+      { width: 800, crop: "limit", quality: "auto", fetch_format: "webp" },
+    ],
   },
 });
 
-// إعداد التخزين لإيصالات الدفع
 const receiptStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: "receipts",
     allowed_formats: ["jpg", "png", "jpeg", "webp"],
     public_id: (req, file) => `booking-${req.user.id}-${Date.now()}`,
+    // التعديل هنا: تصغير حجم الإيصال لأنه لا يحتاج دقة خارقة
+    transformation: [
+      { width: 600, crop: "limit", quality: "auto", fetch_format: "webp" },
+    ],
   },
 });
 
