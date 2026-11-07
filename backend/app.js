@@ -85,6 +85,9 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.get("/", (req, res) => {
   res.status(200).send("Mawid API is running successfully! 🚀");
 });
+app.get("/ping", (req, res) => {
+  res.status(200).send("Server is alive! 🚀");
+});
 
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/events", eventRoutes);

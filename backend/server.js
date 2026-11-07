@@ -12,7 +12,7 @@ dotenv.config({ path: "./.env" });
 const mongoose = require("mongoose");
 const http = require("http");
 const app = require("./app");
-const startKeepAliveJob = require("./utils/keepAliveService");
+//const startKeepAliveJob = require("./utils/keepAliveService");
 
 const server = http.createServer(app);
 
@@ -34,7 +34,7 @@ const port = process.env.PORT || 5000;
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`Mawid App running on port ${port}...`);
-  startKeepAliveJob();
+  //startKeepAliveJob();
 });
 
 // ---------- معالجة الأخطاء على مستوى العملية ----------
