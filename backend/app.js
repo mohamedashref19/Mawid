@@ -86,6 +86,9 @@ app.get("/", (req, res) => {
   res.status(200).send("Mawid API is running successfully! 🚀");
 });
 app.get("/ping", (req, res) => {
+  console.log(
+    `[Keep-Alive] Ping received from external Cron at ${new Date().toISOString()}`,
+  );
   res.status(200).send("Server is alive! 🚀");
 });
 
