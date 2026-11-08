@@ -11,11 +11,72 @@ const escapeHtml = (str = "") =>
       ],
   );
 
+// ---- فصل الروابط عن التفاصيل (نفس منطق frontend/src/lib/access.ts) ----
+const URL_RE = /https?:\/\/[^\s]+/gi;
+const TRAILING_PUNCT_RE = /[)\]}>.,;:!?،؛؟'"”’»…]+$/u;
+
+const isHttpUrl = (value) => {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const extractLinks = (text = "") =>
+  Array.from(
+    new Set(
+      (String(text).match(URL_RE) || [])
+        .map((u) => u.replace(TRAILING_PUNCT_RE, ""))
+        .filter(isHttpUrl),
+    ),
+  );
+
+const stripLinks = (text = "") =>
+  String(text)
+    .replace(URL_RE, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const linkLabel = (url) => {
+  let host = "";
+  try {
+    host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "الرابط";
+  }
+  const is = (...domains) =>
+    domains.some((d) => host === d || host.endsWith("." + d));
+  if (is("wa.me", "whatsapp.com")) return "واتساب";
+  if (is("zoom.us", "zoom.com")) return "Zoom";
+  if (is("meet.google.com")) return "Google Meet";
+  if (is("t.me", "telegram.me", "telegram.org")) return "تيليجرام";
+  if (is("youtube.com", "youtu.be")) return "يوتيوب";
+  if (is("teams.microsoft.com", "teams.live.com")) return "Microsoft Teams";
+  if (is("facebook.com", "fb.me", "fb.com")) return "فيسبوك";
+  if (is("drive.google.com", "docs.google.com")) return "Google Drive";
+  if (is("discord.gg", "discord.com")) return "ديسكورد";
+  return host;
+};
+
+// لو في أكتر من رابط لنفس الموقع بنرقّمهم (واتساب 1، واتساب 2)
+const labelLinks = (urls) => {
+  const base = urls.map(linkLabel);
+  return urls.map((url, i) => {
+    const same = base.filter((l) => l === base[i]).length;
+    const nth = base.slice(0, i + 1).filter((l) => l === base[i]).length;
+    return { url, label: same > 1 ? `${base[i]} ${nth}` : base[i] };
+  });
+};
+
 const EMAIL_API_TIMEOUT_MS = 10000;
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://cts-alex.vercel.app";
-//const LOGO_URL = `${FRONTEND_URL}/logo.png`;
 const LOGO_URL = "https://cts-alex.vercel.app/logo.png";
+
 module.exports = class Email {
   constructor(user, url) {
     this.to = user.email;
@@ -153,31 +214,112 @@ module.exports = class Email {
   async sendBookingTicket(bookingData, eventData) {
     const isOnlineCourse =
       eventData.type === "course" && eventData.attendanceMode === "online";
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(bookingData.ticketCode || bookingData._id)}`;
 
-    const accessSection = isOnlineCourse
-      ? `<div style="margin:16px 0; padding:16px; background:#0F0E0C; border:1px solid #C8A45D; border-radius:12px; text-align:center;">
-           <p style="color:#C8A45D; font-weight:bold; margin:0 0 10px;">تفاصيل الانضمام للكورس الأونلاين:</p>
-           <p style="color:#F5EFE6; font-size:14px; margin:0; word-break:break-all;">${escapeHtml(eventData.accessLink || "سيتم إرسال الرابط قريباً")}</p>
+    const rawTicket = String(bookingData.ticketCode || bookingData._id || "");
+    const shortCode =
+      "MW-" + rawTicket.replace(/-/g, "").slice(0, 6).toUpperCase();
+
+    const qrData = `${rawTicket}|${shortCode}`;
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrData)}`;
+
+    // روابط الانضمام (واحد أو أكتر) + التفاصيل النصية، مع دعم الكورسات القديمة
+    // اللي كان فيها الرسالة والرابط في نفس الحقل
+    const rawAccess = (eventData.accessLink || "").trim();
+    const accessLinks = labelLinks(extractLinks(rawAccess));
+    const accessDetails =
+      (eventData.accessDetails || "").trim() || stripLinks(rawAccess);
+
+    const quantity = Number(bookingData.quantity) || 1;
+    const amount = Number(bookingData.amount) || 0;
+
+    // الايفنت بيتخزن كـ UTC midnight للتاريخ اللي الأدمن اختاره، فبنعرضه بـ UTC
+    // عشان نفس اليوم يظهر بغض النظر عن توقيت السيرفر
+    let dateText = "";
+    try {
+      dateText = new Date(eventData.date).toLocaleDateString("ar-EG", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "UTC",
+      });
+    } catch {
+      dateText = "";
+    }
+
+    const detailRows = [
+      ["العنوان", eventData.title],
+      ["التاريخ", dateText],
+      ["الوقت", eventData.time],
+      // المكان بيتعرض للحضور الفعلي بس (للأونلاين الحقل ده رابط/منصة)
+      ["المكان", isOnlineCourse ? "" : eventData.location],
+      ["عدد التذاكر", String(quantity)],
+      ["الإجمالي", amount > 0 ? `${amount} ج.م` : "مجاني"],
+    ]
+      .filter(([, value]) => value)
+      .map(
+        ([label, value], i, arr) =>
+          `<p style="margin:0${i < arr.length - 1 ? " 0 8px" : ""}; font-size:14px; color:#F5EFE6;${
+            i < arr.length - 1
+              ? " border-bottom:1px solid #2B251B; padding-bottom:8px;"
+              : ""
+          }"><strong style="color:#C8A45D;">${label}:</strong> ${escapeHtml(value)}</p>`,
+      )
+      .join("\n          ");
+
+    const ticketPageUrl = `${FRONTEND_URL}/ticket/${bookingData._id}`;
+
+    const linkButtonsHtml = accessLinks
+      .map(
+        ({ url, label }) =>
+          `<div style="text-align:center; margin-top:8px;">
+             <a href="${escapeHtml(url)}" target="_blank" style="background:#C8A45D; color:#0F0E0C; padding:10px 24px; text-decoration:none; border-radius:50px; font-weight:800; font-size:14px; display:inline-block;">
+               انضم عبر ${escapeHtml(label)} 🔗
+             </a>
+           </div>`,
+      )
+      .join("");
+
+    const onlineDetailsSection = isOnlineCourse
+      ? `<div style="margin:0 0 18px; padding:16px; background:#0F0E0C; border:1px solid #C8A45D; border-radius:12px; text-align:right; direction:rtl;">
+           <p style="color:#C8A45D; font-weight:bold; margin:0 0 8px; text-align:center;">تفاصيل الانضمام للكورس الأونلاين:</p>
+           ${
+             accessDetails
+               ? `<p style="color:#F5EFE6; font-size:14px; line-height:1.7; margin:0 0 12px; white-space:pre-line; word-break:break-word;">${escapeHtml(accessDetails)}</p>`
+               : accessLinks.length === 0
+                 ? `<p style="color:#A69F91; font-size:13px; margin:0; text-align:center;">سيتم إرسال التفاصيل والرابط قريباً</p>`
+                 : ""
+           }
+           ${linkButtonsHtml}
          </div>`
-      : `<div style="text-align:center; margin-bottom:15px;">
-           <img src="${qrCodeUrl}" alt="QR Code" style="width:150px; height:150px; border:4px solid #C8A45D; border-radius:12px; background:#fff; padding:6px;" />
-           <p style="color:#A69F91; font-size:12px; margin:8px 0 0;">كود التذكرة: <strong style="color:#C8A45D;">${escapeHtml(bookingData.ticketCode || String(bookingData._id))}</strong></p>
-         </div>`;
+      : "";
+
+    const qrSection = `
+      <div style="text-align:center; margin-bottom:18px;">
+        <img src="${qrCodeUrl}" alt="QR Code" style="width:160px; height:160px; border:4px solid #C8A45D; border-radius:14px; background:#fff; padding:8px;" />
+        <p style="color:#A69F91; font-size:11px; margin:10px 0 2px;">رقم التذكرة</p>
+        <p dir="ltr" style="color:#C8A45D; font-size:18px; font-weight:800; letter-spacing:3px; margin:0;">${escapeHtml(shortCode)}</p>
+        ${
+          quantity > 1
+            ? `<p style="color:#A69F91; font-size:12px; margin:8px 0 0;">هذا الكود يسمح بدخول ${quantity} أشخاص</p>`
+            : ""
+        }
+      </div>`;
 
     const body = `
       <h2 style="color:#C8A45D; font-size:20px; margin:0 0 12px; text-align:center;">تم تأكيد حجزك بنجاح! 🎉</h2>
       <div style="background:#1C1915; border:1px solid #2B251B; border-radius:16px; padding:20px; margin:0 auto 20px; max-width:380px;">
-        ${accessSection}
+        ${onlineDetailsSection}
+        ${qrSection}
         <div style="background:#0F0E0C; border-radius:12px; padding:15px; text-align:right;">
-          <p style="margin:0 0 8px; font-size:14px; border-bottom:1px solid #2B251B; padding-bottom:8px; color:#F5EFE6;">
-            <strong style="color:#C8A45D;">العنوان:</strong> ${escapeHtml(eventData.title)}
-          </p>
-          <p style="margin:0; font-size:14px; color:#F5EFE6;">
-            <strong style="color:#C8A45D;">الإجمالي المدفوع:</strong> ${bookingData.amount} ج.م
-          </p>
+          ${detailRows}
         </div>
       </div>
+      <p style="text-align:center; margin:0;">
+        <a href="${escapeHtml(ticketPageUrl)}" style="color:#C8A45D; font-size:13px; text-decoration:underline;">
+          عرض التذكرة في الموقع
+        </a>
+      </p>
     `;
     await this.send(`تأكيد حجزك: ${eventData.title} | CTS 🎟️`, body);
   }

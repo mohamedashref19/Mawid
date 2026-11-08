@@ -18,11 +18,20 @@ const eventSchema = new mongoose.Schema(
         values: ["online", "offline"],
         message: "نظام الحضور يجب أن يكون online أو offline",
       },
-      default: "offline", // الافتراضي خليناه أوفلاين عشان الإيفنتات والكورسات العادية
+      default: "offline",
     },
+    // روابط الانضمام للكورس الأونلاين: رابط أو أكتر، كل رابط في سطر مستقل
     accessLink: {
       type: String,
       default: "",
+      select: false, // مخفي افتراضياً لحماية روابط الكورسات المدفوعة
+    },
+    // تفاصيل الكورس الأونلاين (مواعيد، كلمة سر، تعليمات...) كلام عادي
+    accessDetails: {
+      type: String,
+      default: "",
+      select: false, // نفس حماية الرابط: تظهر للمشتركين المؤكدين والأدمن بس
+      maxlength: [2000, "تفاصيل الكورس طويلة جداً (الحد الأقصى 2000 حرف)"],
     },
     description: {
       type: String,
@@ -30,14 +39,18 @@ const eventSchema = new mongoose.Schema(
     },
     image: {
       type: String,
-      default: "default-event.jpg", // صورة افتراضية لحد ما نربط رفع الصور
+      default: "default-event.jpg",
     },
     date: {
       type: Date,
       required: [true, "يرجى تحديد التاريخ"],
       validate: {
         validator: function (val) {
-          // تصفير الوقت لمقارنة التاريخ فقط
+          // لما التعديل بيجي من findByIdAndUpdate بيبقى الـ this عبارة عن Query
+          // (مفيهوش isModified) فكان بيرمي خطأ ويفشّل أي تعديل. التحقق من التاريخ
+          // في حالة التعديل بيتم في updateEvent داخل الـ controller.
+          if (typeof this.isModified !== "function") return true;
+          if (!this.isNew && !this.isModified("date")) return true;
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           return val >= today;
@@ -56,7 +69,7 @@ const eventSchema = new mongoose.Schema(
     price: {
       type: Number,
       required: [true, "يرجى تحديد السعر"],
-      min: [0, "السعر لا يمكن أن يكون بالسالب"], // منع القيم السالبة
+      min: [0, "السعر لا يمكن أن يكون بالسالب"],
     },
     paymentMethod: {
       type: String,
@@ -65,7 +78,6 @@ const eventSchema = new mongoose.Schema(
     },
     paymentTarget: {
       type: String,
-      // هذا الحقل سيحتوي على رقم المحفظة (010xxxx)، أو عنوان انستا باي (name@instapay)، أو رابط الدفع (https://...)
       required: [true, "يرجى تحديد رقم أو رابط الدفع الخاص بهذه الفعالية"],
     },
     capacity: {
@@ -75,7 +87,7 @@ const eventSchema = new mongoose.Schema(
     },
     bookedSeats: {
       type: Number,
-      default: 0, // عدد المقاعد اللي اتحجزت فعلياً (هتزيد مع كل حجز مؤكد)
+      default: 0,
     },
     isActive: {
       type: Boolean,
@@ -94,7 +106,7 @@ eventSchema.virtual("seatsLeft").get(function () {
   return this.capacity - this.bookedSeats;
 });
 
-// عشان دايماً نعرض الفعاليات النشطة بس للمستخدم العادي (لو حابب)
+// عرض الفعاليات النشطة فقط
 eventSchema.pre(/^find/, function () {
   this.find({ isActive: { $ne: false } });
 });

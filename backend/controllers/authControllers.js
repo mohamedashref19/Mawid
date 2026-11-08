@@ -537,10 +537,53 @@ exports.deleteStaff = catchAsync(async (req, res, next) => {
   if (req.params.id === req.user.id)
     return next(new AppError("لا يمكنك حذف حسابك الشخصي!", 400));
 
-  const staff = await User.findByIdAndUpdate(req.params.id, {
-    isActive: false,
-  });
+  // حسابات الإدارة (admin/employee) فقط، مش حسابات العملاء
+  const staff = await User.findOneAndUpdate(
+    { _id: req.params.id, role: { $in: ["admin", "employee"] } },
+    { isActive: false },
+  );
   if (!staff) return next(new AppError("لم يتم العثور على الحساب", 404));
 
   res.status(204).json({ status: "success", data: null });
+});
+
+exports.updateStaff = catchAsync(async (req, res, next) => {
+  const { name, phone, email, password, role } = req.body;
+
+  // نعدّل حسابات الإدارة فقط. من غير الفلتر ده الأدمن كان يقدر يغيّر
+  // إيميل أو باسورد أي عميل عن طريق /users/staff/:id
+  const staff = await User.findOne({
+    _id: req.params.id,
+    role: { $in: ["admin", "employee"] },
+  });
+  if (!staff) {
+    return next(new AppError("لم يتم العثور على حساب الموظف", 404));
+  }
+
+  if (name) staff.name = name.trim();
+  if (phone) staff.phone = sanitizePhone(phone);
+  if (email) staff.email = sanitizeEmail(email);
+
+  if (role) {
+    const newRole = role === "admin" ? "admin" : "employee";
+    // منع الأدمن من تنزيل صلاحية حسابه هو (ممكن النظام يفضل من غير أدمن)
+    if (String(staff._id) === String(req.user._id) && newRole !== staff.role) {
+      return next(new AppError("لا يمكنك تغيير صلاحية حسابك الشخصي", 400));
+    }
+    staff.role = newRole;
+  }
+
+  // الباسورد بيتشفّر تلقائياً في الـ pre-save hook بتاع الـ User
+  if (typeof password === "string" && password.trim().length > 0) {
+    staff.password = password;
+    staff.passwordConfirm = password;
+  }
+
+  await staff.save();
+  staff.password = undefined;
+
+  res.status(200).json({
+    status: "success",
+    data: { staff },
+  });
 });

@@ -157,15 +157,21 @@ function AdminBookings() {
                       </div>
                     </td>
                     <td className="p-4 flex items-center justify-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setSelectedReceipt(booking.paymentScreenshot)}
-                        className="gap-2 bg-muted hover:bg-muted/80 text-foreground border border-border"
-                      >
-                        <Eye size={16} className="text-primary" />
-                        عرض التحويل
-                      </Button>
+                      {booking.paymentScreenshot ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setSelectedReceipt(booking.paymentScreenshot)}
+                          className="gap-2 bg-muted hover:bg-muted/80 text-foreground border border-border"
+                        >
+                          <Eye size={16} className="text-primary" />
+                          عرض التحويل
+                        </Button>
+                      ) : (
+                        <span className="rounded-lg bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground">
+                          حجز مجاني
+                        </span>
+                      )}
 
                       {booking.status === "pending" && (
                         <>

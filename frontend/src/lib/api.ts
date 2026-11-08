@@ -1,5 +1,5 @@
 // =====================================================================
-// Maw'id — Real Backend API Layer (100% Connected to Express & MongoDB)
+// Maw'id / CTS — Real Backend API Layer (100% Connected to Express & MongoDB)
 // =====================================================================
 
 import axios from "axios";
@@ -61,7 +61,8 @@ export interface Item {
   capacity: number;
   paymentMethod: PaymentMethod;
   paymentTarget: string;
-  accessLink?: string;
+  accessLink?: string; // روابط الانضمام، كل رابط في سطر
+  accessDetails?: string; // تفاصيل الكورس الأونلاين (نص)
 }
 
 export interface Booking {
@@ -79,6 +80,9 @@ export interface Booking {
   createdAt: string;
   rejectReason?: string;
   checkedInAt?: string;
+  accessLink?: string;
+  accessDetails?: string;
+  attendanceMode?: AttendanceMode;
 }
 
 export interface AppSettings {
@@ -107,6 +111,7 @@ export interface NewItemInput {
   paymentMethod: PaymentMethod;
   paymentTarget: string;
   accessLink?: string;
+  accessDetails?: string;
 }
 
 export interface NewStaffInput {
@@ -145,6 +150,7 @@ interface BackendEventRaw {
   paymentMethod?: PaymentMethod;
   paymentTarget?: string;
   accessLink?: string;
+  accessDetails?: string;
 }
 
 interface BackendBookingRaw {
@@ -152,7 +158,7 @@ interface BackendBookingRaw {
   id?: string;
   user?: BackendUserRaw | string;
   event?: BackendEventRaw | string;
-  paymentReceipt: string;
+  paymentReceipt?: string;
   quantity?: number;
   amount: number;
   status: "pending" | "confirmed" | "rejected";
@@ -233,6 +239,7 @@ function mapBackendEvent(e: BackendEventRaw): Item {
     paymentMethod: e.paymentMethod || "wallet",
     paymentTarget: e.paymentTarget || "",
     ...(e.accessLink !== undefined ? { accessLink: e.accessLink } : {}),
+    ...(e.accessDetails !== undefined ? { accessDetails: e.accessDetails } : {}),
   };
 }
 
@@ -280,6 +287,9 @@ function mapBackendBooking(b: BackendBookingRaw): Booking {
     createdAt: b.createdAt || new Date().toISOString(),
     ...(b.rejectReason !== undefined ? { rejectReason: b.rejectReason } : {}),
     ...(b.checkedInAt !== undefined ? { checkedInAt: b.checkedInAt } : {}),
+    ...(eventObj?.accessLink !== undefined ? { accessLink: eventObj.accessLink } : {}),
+    ...(eventObj?.accessDetails !== undefined ? { accessDetails: eventObj.accessDetails } : {}),
+    ...(eventObj?.attendanceMode !== undefined ? { attendanceMode: eventObj.attendanceMode } : {}),
   };
 }
 
@@ -353,7 +363,7 @@ export async function register(input: {
   password: string;
 }): Promise<{ token?: string; user?: User; requiresVerification?: boolean; email?: string }> {
   try {
-    const res = await apiClient.post("/users/signup", input); // أو register
+    const res = await apiClient.post("/users/signup", input);
     if (res.data.requiresVerification) {
       return { requiresVerification: true, email: res.data.email };
     }
@@ -526,18 +536,16 @@ export async function remainingSeats(itemId: string): Promise<number> {
 export async function createBooking(input: {
   itemId: string;
   quantity: number;
-  paymentScreenshot: string;
+  paymentScreenshot?: string;
 }): Promise<Booking> {
   try {
     const formData = new FormData();
     formData.append("event", input.itemId);
     formData.append("quantity", String(input.quantity));
 
-    if (input.paymentScreenshot.startsWith("data:")) {
+    if (input.paymentScreenshot && input.paymentScreenshot.startsWith("data:")) {
       const blob = dataUrlToBlob(input.paymentScreenshot);
       formData.append("paymentReceipt", blob, "receipt.jpg");
-    } else {
-      throw new Error("يرجى رفع صورة إيصال التحويل");
     }
 
     const res = await apiClient.post("/bookings", formData, {
@@ -591,6 +599,9 @@ export async function adminCreateItem(input: NewItemInput): Promise<Item> {
     if (input.accessLink) {
       formData.append("accessLink", input.accessLink);
     }
+    if (input.accessDetails) {
+      formData.append("accessDetails", input.accessDetails);
+    }
 
     if (input.image && input.image.startsWith("data:")) {
       const blob = dataUrlToBlob(input.image);
@@ -623,6 +634,7 @@ export async function adminUpdateItem(id: string, patch: Partial<NewItemInput>):
     if (patch.paymentMethod !== undefined) formData.append("paymentMethod", patch.paymentMethod);
     if (patch.paymentTarget !== undefined) formData.append("paymentTarget", patch.paymentTarget);
     if (patch.accessLink !== undefined) formData.append("accessLink", patch.accessLink);
+    if (patch.accessDetails !== undefined) formData.append("accessDetails", patch.accessDetails);
 
     if (patch.image && patch.image.startsWith("data:")) {
       const blob = dataUrlToBlob(patch.image);
@@ -829,10 +841,8 @@ export async function adminDeleteStaff(id: string): Promise<void> {
   }
 }
 
-// تحديث البيانات (الاسم فقط)
 export async function updateProfile(data: { name: string }): Promise<User> {
   try {
-    // استخدمنا /update-me عشان يطابق userRoutes.js بتاعك
     const res = await apiClient.patch("/users/update-me", data);
     const user = mapBackendUser(res.data.data.user);
     saveLocalUser(user);
@@ -842,14 +852,12 @@ export async function updateProfile(data: { name: string }): Promise<User> {
   }
 }
 
-// تحديث كلمة المرور
 export async function updatePassword(data: {
   passwordCurrent: string;
   password: string;
   passwordConfirm: string;
 }): Promise<void> {
   try {
-    // استخدمنا /update-password عشان يطابق userRoutes.js بتاعك
     await apiClient.patch("/users/update-password", data);
   } catch (err: unknown) {
     throw new Error(extractErrorMessage(err, "فشل تحديث كلمة المرور"));

@@ -94,7 +94,7 @@ function Flow({ item, remaining, user }: { item: api.Item; remaining: number; us
   }
 
   async function submit() {
-    if (!screenshot) {
+    if (total > 0 && !screenshot) {
       toast.error("يرجى رفع صورة إيصال الدفع / التحويل");
       return;
     }
@@ -103,7 +103,7 @@ function Flow({ item, remaining, user }: { item: api.Item; remaining: number; us
       const b = await api.createBooking({
         itemId: item.id,
         quantity,
-        paymentScreenshot: screenshot,
+        ...(screenshot ? { paymentScreenshot: screenshot } : {}),
       });
       setBooking(b);
       setStep(3);
@@ -233,11 +233,17 @@ function Flow({ item, remaining, user }: { item: api.Item; remaining: number; us
           </div>
 
           <Button
-            disabled={remaining <= 0}
-            onClick={() => setStep(2)}
+            disabled={remaining <= 0 || submitting}
+            onClick={() => (total > 0 ? setStep(2) : submit())}
             className="h-14 w-full rounded-2xl text-lg font-extrabold shadow-glow"
           >
-            {remaining <= 0 ? "نفدت المقاعد" : "متابعة للدفع"}
+            {remaining <= 0
+              ? "نفدت المقاعد"
+              : total > 0
+                ? "متابعة للدفع"
+                : submitting
+                  ? "جاري الحجز..."
+                  : "تأكيد الحجز (مجاني)"}
           </Button>
         </div>
       ) : (

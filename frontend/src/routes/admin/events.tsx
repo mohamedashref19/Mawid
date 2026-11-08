@@ -4,7 +4,8 @@ import { ArrowRight, Plus, Edit, Trash2, ImagePlus, Save, X } from "lucide-react
 import { toast } from "sonner";
 import * as api from "@/lib/api";
 import { useRequireRole } from "@/hooks/use-auth";
-import { ConfirmModal } from "@/components/ConfirmModal"; // إضافة الـ Modal المخصص
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { normalizeLinksText, parseAccess, validateLinksText } from "@/lib/access";
 
 export const Route = createFileRoute("/admin/events")({
   component: AdminEvents,
@@ -24,6 +25,7 @@ const INITIAL_FORM: api.NewItemInput = {
   paymentMethod: "wallet" as api.PaymentMethod,
   paymentTarget: "",
   accessLink: "",
+  accessDetails: "",
 };
 
 function AdminEvents() {
@@ -38,7 +40,6 @@ function AdminEvents() {
   const [form, setForm] = useState<api.NewItemInput>(INITIAL_FORM);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // حالة المودال لحذف الفعالية
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
 
   const fetchEvents = async () => {
@@ -58,7 +59,6 @@ function AdminEvents() {
     }
   }, [ready]);
 
-  // إخفاء المحتوى تماماً إذا لم تكتمل الصلاحية
   if (!ready) return null;
 
   const openCreateForm = () => {
@@ -69,6 +69,8 @@ function AdminEvents() {
 
   const openEditForm = (item: api.Item) => {
     setEditId(item.id);
+    // بيفصل الروابط عن التفاصيل (وبيتعامل مع الكورسات القديمة اللي كان فيها الاتنين مع بعض)
+    const access = parseAccess(item.accessLink, item.accessDetails);
     setForm({
       title: item.title,
       type: item.type,
@@ -82,7 +84,8 @@ function AdminEvents() {
       image: item.image,
       paymentMethod: item.paymentMethod || "wallet",
       paymentTarget: item.paymentTarget || "",
-      accessLink: item.accessLink || "",
+      accessLink: access.links.join("\n"),
+      accessDetails: access.details,
     });
     setShowForm(true);
   };
@@ -131,11 +134,27 @@ function AdminEvents() {
     const effectiveMode: api.AttendanceMode =
       form.type === "event" ? "offline" : form.attendanceMode;
 
+    const isOnlineCourse = form.type === "course" && effectiveMode === "online";
+
+    if (isOnlineCourse) {
+      const linksError = validateLinksText(form.accessLink);
+      if (linksError) {
+        toast.error(linksError);
+        return;
+      }
+      const hasLinks = normalizeLinksText(form.accessLink) !== "";
+      const hasDetails = (form.accessDetails ?? "").trim() !== "";
+      if (!hasLinks && !hasDetails) {
+        toast.error("اكتب رابط انضمام واحد على الأقل أو تفاصيل للكورس الأونلاين");
+        return;
+      }
+    }
+
     const submitData: api.NewItemInput = {
       ...form,
       attendanceMode: effectiveMode,
-      accessLink:
-        form.type === "course" && effectiveMode === "online" ? (form.accessLink ?? "").trim() : "",
+      accessLink: isOnlineCourse ? normalizeLinksText(form.accessLink) : "",
+      accessDetails: isOnlineCourse ? (form.accessDetails ?? "").trim() : "",
     };
 
     setBusy(true);
@@ -264,7 +283,7 @@ function AdminEvents() {
           </div>
 
           {form.type === "course" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4">
+            <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-top-4">
               <div className="space-y-2">
                 <label className="text-primary block font-bold">نظام حضور الكورس</label>
                 <select
@@ -275,7 +294,7 @@ function AdminEvents() {
                   }
                 >
                   <option value="online" className="bg-card text-foreground">
-                    أونلاين (رابط انضمام / رسالة)
+                    أونلاين (رابط انضمام + تفاصيل + QR Code)
                   </option>
                   <option value="offline" className="bg-card text-foreground">
                     أوفلاين في المقر (تذكرة QR Code)
@@ -284,20 +303,41 @@ function AdminEvents() {
               </div>
 
               {form.attendanceMode === "online" && (
-                <div className="space-y-2">
-                  <label className="text-primary block font-bold">
-                    رابط الانضمام أو رسالة التوجيه
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    dir="auto"
-                    placeholder="https://chat.whatsapp.com/... أو تواصل معنا..."
-                    className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
-                    value={form.accessLink ?? ""}
-                    onChange={(e) => setForm({ ...form, accessLink: e.target.value })}
-                  />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <label className="text-primary block font-bold">روابط الانضمام</label>
+                    <p className="text-xs text-muted-foreground">
+                      ضع كل رابط في سطر مستقل (واتساب، Zoom، Meet...). بتظهر للمشتركين كأزرار بعد
+                      تأكيد الحجز.
+                    </p>
+                    <textarea
+                      rows={3}
+                      dir="ltr"
+                      placeholder={"https://chat.whatsapp.com/...\nhttps://zoom.us/j/..."}
+                      className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none resize-none focus:ring-1 focus:ring-primary transition-all text-left text-sm"
+                      value={form.accessLink ?? ""}
+                      onChange={(e) => setForm({ ...form, accessLink: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-primary block font-bold">تفاصيل الكورس</label>
+                    <p className="text-xs text-muted-foreground">
+                      المواعيد، كلمة السر، تعليمات الحضور... (بتظهر للمشتركين فقط بعد تأكيد الحجز)
+                    </p>
+                    <textarea
+                      rows={4}
+                      dir="auto"
+                      maxLength={2000}
+                      placeholder={
+                        "مثال:\nأهلاً بك في الكورس! المحاضرات كل سبت وثلاثاء الساعة 8 مساءً.\nكلمة سر الاجتماع: 1234"
+                      }
+                      className="w-full p-3 rounded-xl bg-muted text-foreground border border-border focus:border-primary outline-none resize-none focus:ring-1 focus:ring-primary transition-all leading-relaxed"
+                      value={form.accessDetails ?? ""}
+                      onChange={(e) => setForm({ ...form, accessDetails: e.target.value })}
+                    />
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -566,7 +606,6 @@ function AdminEvents() {
         </table>
       </div>
 
-      {/* المودال المخصص للحذف */}
       <ConfirmModal
         isOpen={!!deleteEventId}
         title="حذف الفعالية"

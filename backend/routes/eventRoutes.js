@@ -1,14 +1,17 @@
 const express = require("express");
 const eventController = require("../controllers/eventController");
 const authController = require("../controllers/authControllers");
+const optionalAuth = require("../middlewares/optionalAuth");
 const uploadMiddleware = require("../middlewares/uploadMiddleware");
 
 const router = express.Router();
 
-// مسارات عامة (أي حد يقدر يشوف الايفنتات)
-router.route("/").get(eventController.getAllEvents);
+// مسارات عامة (أي حد يقدر يشوف الايفنتات).
+// optionalAuth بيعرّف الأدمن لو معاه توكن، عشان نرجّعله accessLink
+// (الزائر العادي مبياخدوش أبداً).
+router.route("/").get(optionalAuth, eventController.getAllEvents);
 
-router.route("/:id").get(eventController.getEvent);
+router.route("/:id").get(optionalAuth, eventController.getEvent);
 
 // حماية المسارات القادمة (لازم تسجيل دخول وصلاحية أدمن)
 router.use(authController.protect);

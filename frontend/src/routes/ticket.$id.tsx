@@ -20,6 +20,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useMe } from "@/hooks/use-auth";
 import * as api from "@/lib/api";
 import { formatLongDate, formatNumber, formatPrice, formatTime } from "@/lib/format";
+import { labelLinks, parseAccess } from "@/lib/access";
 
 export const Route = createFileRoute("/ticket/$id")({
   head: () => ({
@@ -33,7 +34,6 @@ function TicketPage() {
   const navigate = useNavigate();
   const { data: user, isLoading: isAuthLoading } = useMe();
 
-  // 1. نجلب الحجز الأول (فقط لو اليوزر موجود)
   const {
     data: booking,
     isLoading: isBookingLoading,
@@ -41,27 +41,20 @@ function TicketPage() {
   } = useQuery({
     queryKey: ["booking", id],
     queryFn: () => api.getBooking(id),
-    enabled: !!user, // لا تطلب الداتا إلا لو اليوزر عامل لوج إن
+    enabled: !!user,
     retry: 1,
   });
 
-  // 2. نجلب الفعالية (فقط لو الحجز موجود ومحتوي على itemId)
   const { data: item, isLoading: isItemLoading } = useQuery({
     queryKey: ["item", booking?.itemId ?? ""],
     queryFn: () => api.getItem(booking?.itemId as string),
-    enabled: !!booking?.itemId, // لا تطلب الفعالية إلا لو فيه itemId
+    enabled: !!booking?.itemId,
   });
 
-  // ----------------------------------------------------
-  // حالات التحميل والأخطاء (عشان نمنع الـ Crash)
-  // ----------------------------------------------------
-
-  // حالة 1: جاري التأكد من حالة تسجيل الدخول
   if (isAuthLoading) {
     return <LoadingSkeleton />;
   }
 
-  // حالة 2: المستخدم غير مسجل دخول
   if (!user) {
     return (
       <div className="mx-auto max-w-md px-4 pt-10 text-center animate-in fade-in zoom-in-95">
@@ -77,12 +70,10 @@ function TicketPage() {
     );
   }
 
-  // حالة 3: جاري جلب التذكرة والفعالية
   if (isBookingLoading || isItemLoading || (!booking && !isBookingError)) {
     return <LoadingSkeleton />;
   }
 
-  // حالة 4: التذكرة مش موجودة أو حصل خطأ في السيرفر
   if (isBookingError || !booking || !item) {
     return (
       <div className="mx-auto max-w-md px-4 pt-10 text-center animate-in fade-in zoom-in-95">
@@ -104,7 +95,6 @@ function TicketPage() {
     );
   }
 
-  // حالة 5: الحجز لسه قيد المراجعة أو مرفوض
   if (booking.status !== "confirmed" && booking.status !== "attended") {
     return (
       <div className="mx-auto max-w-md px-4 pt-10 text-center animate-in fade-in zoom-in-95">
@@ -135,12 +125,18 @@ function TicketPage() {
   }
 
   // ----------------------------------------------------
-  // التذكرة السليمة (بعد التأكد من كل حاجة)
+  // التذكرة السليمة (تعرض تفاصيل الأونلاين + الـ QR Code معاً)
   // ----------------------------------------------------
 
-  const isOnlineCourse = item.type === "course" && item.attendanceMode === "online";
-  const rawAccess = (item.accessLink ?? "").trim();
-  const isUrl = /^https?:\/\//i.test(rawAccess);
+  const effectiveAttendanceMode = booking.attendanceMode ?? item.attendanceMode;
+  const isOnlineCourse = item.type === "course" && effectiveAttendanceMode === "online";
+  // روابط الانضمام (واحد أو أكتر) + التفاصيل النصية، مع دعم الكورسات القديمة
+  const access = parseAccess(
+    booking.accessLink ?? item.accessLink,
+    booking.accessDetails ?? item.accessDetails,
+  );
+  const accessLinks = labelLinks(access.links);
+  const hasAccessInfo = accessLinks.length > 0 || access.details !== "";
   const bookingCode = booking.code;
 
   async function downloadTicket() {
@@ -167,7 +163,7 @@ function TicketPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isOnlineCourse
-            ? "يمكنك الآن الانضمام للكورس عبر التفاصيل بالأسفل"
+            ? "تفاصيل الانضمام للكورس ورمز التذكرة الخاص بك بالأسفل"
             : "اعرض رمز الـ QR عند البوابة للدخول"}
         </p>
       </header>
@@ -216,70 +212,62 @@ function TicketPage() {
             <StatusBadge status={booking.status} />
           </div>
 
-          <div className="flex flex-col items-center gap-3 border-t border-dashed border-border pt-4">
-            {isOnlineCourse ? (
-              <div className="w-full text-center">
-                <p className="text-sm font-bold text-foreground mb-3">تفاصيل الانضمام للكورس</p>
-                {rawAccess ? (
-                  isUrl ? (
+          {/* قسم تفاصيل الكورس الأونلاين (التفاصيل + أزرار الروابط) */}
+          {isOnlineCourse && (
+            <div className="w-full border-t border-dashed border-border pt-4 text-center space-y-3">
+              <p className="text-sm font-bold text-primary">تفاصيل الانضمام للكورس</p>
+              {hasAccessInfo ? (
+                <>
+                  {access.details && (
+                    <div className="rounded-xl bg-primary/10 border border-primary/30 p-4 text-sm font-bold text-foreground whitespace-pre-wrap text-right leading-relaxed break-words">
+                      {access.details}
+                    </div>
+                  )}
+                  {accessLinks.map(({ url, label }) => (
                     <a
-                      href={rawAccess}
+                      key={url}
+                      href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground p-4 font-bold transition-colors hover:bg-primary/90 shadow-glow"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground p-3.5 font-bold transition-colors hover:bg-primary/90 shadow-glow"
                     >
-                      الانتقال للكورس / الجروب <ExternalLink className="size-5" />
+                      انضم عبر {label} <ExternalLink className="size-5" />
                     </a>
-                  ) : (
-                    <div className="rounded-xl bg-primary/10 border border-primary/30 p-4 text-sm font-bold text-foreground whitespace-pre-wrap">
-                      {rawAccess}
-                    </div>
-                  )
-                ) : (
-                  <p className="text-xs text-muted-foreground bg-muted p-4 rounded-xl font-bold border border-border">
-                    سيتم إرسال تفاصيل الدخول قريباً.
-                  </p>
-                )}
-                <div className="mt-4">
-                  <p className="text-[11px] text-muted-foreground font-bold">رقم الحجز المرجعي</p>
-                  <p dir="ltr" className="text-lg font-extrabold tracking-[0.1em] text-foreground">
-                    {booking.code}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="rounded-2xl bg-white p-3 border-2 border-primary/20">
-                  <QRCodeSVG value={`${booking.qrToken}|${booking.code}`} size={168} level="M" />
-                </div>
-                <div className="text-center">
-                  <p className="text-[11px] text-muted-foreground font-bold">رقم التذكرة</p>
-                  <p dir="ltr" className="text-2xl font-extrabold tracking-[0.2em] text-primary">
-                    {booking.code}
-                  </p>
-                </div>
-              </>
-            )}
+                  ))}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground bg-muted p-4 rounded-xl font-bold border border-border">
+                  سيتم إرسال تفاصيل الدخول قريباً.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* قسم الـ QR Code وكود التذكرة (يظهر دائماً سواء أونلاين أو أوفلاين) */}
+          <div className="flex flex-col items-center gap-3 border-t border-dashed border-border pt-4">
+            <div className="rounded-2xl bg-white p-3 border-2 border-primary/20">
+              <QRCodeSVG value={`${booking.qrToken}|${booking.code}`} size={168} level="M" />
+            </div>
+            <div className="text-center">
+              <p className="text-[11px] text-muted-foreground font-bold">رقم التذكرة</p>
+              <p dir="ltr" className="text-2xl font-extrabold tracking-[0.2em] text-primary">
+                {booking.code}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {!isOnlineCourse && (
-        <Button
-          onClick={downloadTicket}
-          variant="secondary"
-          className="mt-6 h-12 w-full gap-2 rounded-2xl font-bold bg-muted hover:bg-muted/80 text-foreground border border-border"
-        >
-          <Download className="size-5" /> تنزيل التذكرة كصورة
-        </Button>
-      )}
+      <Button
+        onClick={downloadTicket}
+        variant="secondary"
+        className="mt-6 h-12 w-full gap-2 rounded-2xl font-bold bg-muted hover:bg-muted/80 text-foreground border border-border"
+      >
+        <Download className="size-5" /> تنزيل التذكرة كصورة
+      </Button>
     </div>
   );
 }
-
-// ----------------------------------------------------
-// المكونات المساعدة
-// ----------------------------------------------------
 
 function LoadingSkeleton() {
   return (
