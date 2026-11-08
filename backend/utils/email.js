@@ -83,7 +83,7 @@ module.exports = class Email {
     this.firstName = (user.name || "عميلنا العزيز").split(" ")[0];
     this.url = url || FRONTEND_URL;
     this.fromEmail = process.env.EMAIL_FROM;
-    this.fromName = "CTS - Create The Scene";
+    this.fromName = "CTS - Create Top Scene";
   }
 
   wrapTemplate(bodyContent) {
@@ -93,13 +93,13 @@ module.exports = class Email {
         <div style="background:linear-gradient(135deg, #1C1915 0%, #0F0E0C 100%); padding:28px 20px; text-align:center; border-bottom:2px solid #C8A45D;">
           <img src="${LOGO_URL}" alt="CTS" style="width:68px; height:68px; border-radius:16px; object-fit:cover; border:2px solid #C8A45D;" />
           <h1 style="color:#C8A45D; font-size:22px; margin:12px 0 4px; font-weight:800; letter-spacing:1px;">CTS</h1>
-          <p style="color:#A69F91; font-size:12px; margin:0;">Create The Scene — فعالياتك وكورساتك في مكان واحد</p>
+          <p style="color:#A69F91; font-size:12px; margin:0;">Create Top Scene — فعالياتك وكورساتك في مكان واحد</p>
         </div>
         <div style="padding:32px 28px; text-align:right; direction:rtl; color:#F5EFE6;">
           ${bodyContent}
         </div>
         <div style="background:#0F0E0C; padding:18px 20px; text-align:center; border-top:1px solid #2B251B;">
-          <p style="color:#A69F91; font-size:12px; margin:0;">CTS — Create The Scene ✨</p>
+          <p style="color:#A69F91; font-size:12px; margin:0;">CTS — Create Top Scene ✨</p>
         </div>
       </div>
     </div>`;
